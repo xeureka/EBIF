@@ -1,0 +1,5 @@
+# TODO: replace example.com with your production domain.
+User-agent: *
+Allow: /
+
+Sitemap: https://example.com/sitemap.xml

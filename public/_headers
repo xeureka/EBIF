@@ -1,0 +1,25 @@
+# Security headers for every static response.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), display-capture=(), interest-cohort=()
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'self'; frame-ancestors 'none'; form-action 'self'
+
+# Vite emits content-hashed filenames here, so they are safe to cache forever.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Public files keep stable names; revalidate daily.
+/images/*
+  Cache-Control: public, max-age=86400
+
+/fonts/*
+  Cache-Control: public, max-age=86400
+
+# The HTML shell and SPA fallback must revalidate so new deploys appear at once.
+/
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
