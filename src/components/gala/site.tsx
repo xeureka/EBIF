@@ -39,7 +39,7 @@ const PILLARS = [
   },
   {
     icon: Mic2,
-    title: "A gala that closes the day",
+    title: "A dinner that closes the day",
     copy: "A seated dinner after the working programme — relationship, not residual entertainment.",
   },
 ];
@@ -61,7 +61,7 @@ const DAYS = [
     items: [
       ["Morning", "Matchmaking sessions and follow-through"],
       ["Afternoon", "Partnership conversations"],
-      ["Evening", "Gala dinner, seated, with programme"],
+      ["Evening", "Closing dinner, seated, with programme"],
     ],
   },
 ];
@@ -171,7 +171,7 @@ const TIERS = [
   {
     name: "Patron",
     note: "Naming presence",
-    points: ["Stage and dinner acknowledgement", "Principal gala table", "Private briefing before the room opens"],
+    points: ["Stage and dinner acknowledgement", "Principal dinner table", "Private briefing before the room opens"],
   },
   {
     name: "Partner",
@@ -202,7 +202,7 @@ const PROPOSAL_EMAIL = "events@nexabusinessgroup.com";
 const PASSES: PassOption[] = [
   { id: "delegate", name: "Exhibition Presence", detail: "Booth and two participants passes", amount: 485_000, vat: true },
   { id: "investor", name: "Exhibition Presentation", detail: "Exhibition Booth, Company Hour and two participant passes", amount: 596_000, vat: true },
-  { id: "gala", name: "FULL PARTICIPATION PACKAGE", detail: "Exhibition Booth, Company Hour, Premium Networking Access, two Gala Dinner seats, Digital Spotlight Package and two participant passes", amount: 1_056_000, vat: true },
+  { id: "gala", name: "FULL PARTICIPATION PACKAGE", detail: "Exhibition Booth, Company Hour, Premium Networking Access, two closing dinner seats, Digital Spotlight Package and two participant passes", amount: 1_056_000, vat: true },
   { id: "shell", name: "REQUEST A SPONSORSHIP PROPOSAL", detail: PROPOSAL_EMAIL, amount: null, priceLabel: "Upon Request", email: PROPOSAL_EMAIL },
 ];
 
@@ -315,8 +315,8 @@ type Interest = {
 };
 
 const EMPTY: Interest = { name: "", organisation: "", email: "", role: "Investor", note: "" };
-const LEGACY_INTEREST_KEY = "nexa-gala-interest";
-const PAY_KEY = "nexa-gala-payment";
+  const LEGACY_INTEREST_KEY = "nexa-forum-interest";
+  const PAY_KEY = "nexa-forum-payment";
 
 function OrganiserCard({
   name,
@@ -630,7 +630,7 @@ export function GalaSite() {
           <div className="absolute inset-0 bg-shade/55" />
           <div className="relative w-full flex min-h-[88vh] flex-col justify-end px-5 pb-16 pt-28">
             <p className="text-[12px] uppercase tracking-[0.32em] text-ink">
-              Addis Ababa · Two days + gala dinner · 2026
+               Addis Ababa · Two days + closing dinner · 2026
             </p>
             <div className="mt-5 inline-flex w-fit self-start items-center gap-3 border border-ink/60 bg-ink/15 px-4 py-2 text-[11px] font-medium uppercase tracking-[0.24em] text-ink backdrop-blur-sm">
               <span className="text-ink">NOVEMBER 28 - 29</span>
@@ -667,7 +667,7 @@ export function GalaSite() {
           <div className="w-full grid grid-cols-2 divide-line sm:grid-cols-4 sm:divide-x">
             {[
               ["Two days", "Working programme"],
-              ["One dinner", "Seated gala"],
+              ["One dinner", "Closing dinner"],
               ["Matchmaking", "Scheduled, not chance"],
               ["Exhibition", "Limited floor"],
             ].map(([k, v]) => (
