@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { LogOut, Menu, Shield, Users, X } from "lucide-react";
+import { LogOut, Menu, QrCode, Shield, Users, X } from "lucide-react";
 import { getAdminMe, logout } from "@/lib/api";
 import type { AdminMeResponse } from "@/shared/types";
 
@@ -13,6 +13,11 @@ const NAV_ITEMS = [
     to: "/admin/attendees",
     label: "Attendees",
     icon: Users,
+  },
+  {
+    to: "/admin/check-in",
+    label: "Check-in",
+    icon: QrCode,
   },
   {
     to: "/admin/admins",
@@ -56,6 +61,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       return {
         title: "Administrators",
         subtitle: "Manage administrator credentials and portal access privileges.",
+      };
+    }
+    if (location.pathname.startsWith("/admin/check-in")) {
+      return {
+        title: "Check-in",
+        subtitle: "Fast QR code scanning and desk check-in for forum attendees.",
       };
     }
     return {
