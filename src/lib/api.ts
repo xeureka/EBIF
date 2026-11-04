@@ -71,8 +71,8 @@ export async function apiFetch<T>(
  */
 export async function registerAttendee(
   input: RegistrationInput,
-): Promise<{ ok: boolean }> {
-  return apiFetch<{ ok: boolean }>("/api/registrations", {
+): Promise<{ ok: boolean; ticketCode?: string }> {
+  return apiFetch<{ ok: boolean; ticketCode?: string }>("/api/registrations", {
     method: "POST",
     body: JSON.stringify(input),
   });
