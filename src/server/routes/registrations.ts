@@ -3,6 +3,7 @@ import { sql, eq } from "drizzle-orm";
 import { registrationSchema } from "../../shared/schemas";
 import { registrations, rateLimit } from "../db/schema";
 import type { AppDb } from "../db/client";
+import { generateUniqueTicketCode } from "../modules/tickets/code";
 
 export const registrationsRouter = new Hono<{
   Variables: {
@@ -137,6 +138,9 @@ registrationsRouter.post("/", async (c) => {
 
   const mappedType = ATTENDEE_TYPE_MAP[attendeeType] || "Company";
 
+  // Generate unique Crockford Base32 ticket code
+  const ticketCode = await generateUniqueTicketCode(db);
+
   // Parameterized insert
   await db.insert(registrations).values({
     id: crypto.randomUUID(),
@@ -148,8 +152,9 @@ registrationsRouter.post("/", async (c) => {
     attendeeType: mappedType,
     attendingDays: "Nov 28, Nov 29, 2026",
     reference,
+    ticketCode,
     createdAt: new Date(),
   });
 
-  return c.json({ ok: true });
+  return c.json({ ok: true, ticketCode });
 });

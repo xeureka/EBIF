@@ -5,6 +5,7 @@ import { createDbContext, closeDbContext, type AppDb } from "./db/client";
 import { createAuth, type Auth } from "./auth";
 import { registrationsRouter } from "./routes/registrations";
 import { adminRouter } from "./routes/admin";
+import { ticketsRouter } from "./routes/tickets";
 import { recordAuditLog } from "./utils/audit";
 
 export interface ServerEnv {
@@ -174,6 +175,7 @@ app.on(["POST", "GET"], "/api/auth/**", async (c) => {
 
 // 5. Mount API feature routers
 app.route("/api/registrations", registrationsRouter);
+app.route("/api/tickets", ticketsRouter);
 app.route("/api/admin", adminRouter);
 
 // 6. Global error handler: strict structure { error: { code, message } } with no stack traces or SQL leaked
