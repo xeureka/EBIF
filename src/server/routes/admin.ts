@@ -14,11 +14,15 @@ import { getServerEnv } from "../env";
 import { generateUniqueTicketCode } from "../modules/tickets/code";
 import { ResendEmailProvider } from "../modules/email/resend";
 import { sendConfirmationEmail } from "../modules/email/service";
+import { checkInRouter } from "./checkin";
 
 export const adminRouter = new Hono<AdminContextEnv>();
 
 // Apply requireAdmin to all /api/admin/* endpoints
 adminRouter.use("*", requireAdmin);
+
+// Mount Check-in router under /api/admin/check-in
+adminRouter.route("/check-in", checkInRouter);
 
 /**
  * Generate a random 16-character secure password without look-alike characters.
