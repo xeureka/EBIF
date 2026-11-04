@@ -339,8 +339,12 @@ export function RegistrationModal({
       };
       await submitRegistration(payload);
       setSuccess(true);
-    } catch {
-      setSubmitError("We could not complete your registration. Please try again.");
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error
+          ? err.message
+          : "We could not complete your registration. Please try again.",
+      );
     } finally {
       setSubmitting(false);
     }

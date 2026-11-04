@@ -1,0 +1,288 @@
+import { useEffect, useState, useCallback } from "react";
+import { ArrowUpDown, Building2, Calendar, RotateCcw, TrendingUp, Users } from "lucide-react";
+import { getAttendees } from "@/lib/api";
+import type { AttendeeItem, AttendeeStats } from "@/shared/types";
+import type { AttendeesQueryInput } from "@/shared/schemas";
+import { StatCard } from "../components/StatCard";
+import { SearchInput } from "../components/SearchInput";
+import { FilterSelect } from "../components/FilterSelect";
+import { StatusBadge } from "../components/StatusBadge";
+import { Pagination } from "../components/Pagination";
+import { DataTable, type Column } from "../components/DataTable";
+
+const PAGE_SIZE = 10;
+
+const ATTENDEE_TYPE_OPTIONS = [
+  { value: "all", label: "All types" },
+  { value: "company", label: "Company" },
+  { value: "investor", label: "Investor" },
+  { value: "government", label: "Government" },
+  { value: "international_partner", label: "International" },
+] as const;
+
+const DATE_FILTER_OPTIONS = [
+  { value: "all", label: "All time" },
+  { value: "today", label: "Today" },
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+] as const;
+
+export function AttendeesPage() {
+  const [attendees, setAttendees] = useState<AttendeeItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [stats, setStats] = useState<AttendeeStats>({
+    total: 0,
+    today: 0,
+    company: 0,
+    investor: 0,
+    government: 0,
+    internationalPartner: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<string>("all");
+  const [sortAscending, setSortAscending] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const fetchAttendeesData = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const params: AttendeesQueryInput = {
+        search: searchQuery,
+        attendeeType: typeFilter as AttendeesQueryInput["attendeeType"],
+        range: dateFilter as AttendeesQueryInput["range"],
+        sort: sortAscending ? "oldest" : "newest",
+        page: currentPage,
+        pageSize: PAGE_SIZE,
+      };
+
+      const res = await getAttendees(params);
+      setAttendees(res.items);
+      setTotalCount(res.total);
+      setStats(res.stats);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load attendees.");
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, typeFilter, dateFilter, sortAscending, currentPage]);
+
+  useEffect(() => {
+    fetchAttendeesData();
+  }, [fetchAttendeesData]);
+
+  // Reset page when filters change
+  const handleSearchChange = (q: string) => {
+    setSearchQuery(q);
+    setCurrentPage(1);
+  };
+
+  const handleTypeChange = (t: string) => {
+    setTypeFilter(t);
+    setCurrentPage(1);
+  };
+
+  const handleDateChange = (d: string) => {
+    setDateFilter(d);
+    setCurrentPage(1);
+  };
+
+  const hasActiveFilters = searchQuery !== "" || typeFilter !== "all" || dateFilter !== "all";
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setTypeFilter("all");
+    setDateFilter("all");
+    setCurrentPage(1);
+  };
+
+  const formatDate = (isoString: string) => {
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch {
+      return isoString;
+    }
+  };
+
+  const formatAttendeeType = (type: string) => {
+    switch (type) {
+      case "company":
+        return "Company";
+      case "investor":
+        return "Investor";
+      case "government":
+        return "Government Institution";
+      case "international_partner":
+        return "International Partner";
+      default:
+        return type;
+    }
+  };
+
+  const columns: Column<AttendeeItem>[] = [
+    {
+      header: "Full Name",
+      cell: (item) => (
+        <div>
+          <p className="font-medium text-cream">{item.fullName}</p>
+          <p className="text-[10px] text-mute font-mono">{item.reference}</p>
+        </div>
+      ),
+    },
+    {
+      header: "Email",
+      accessorKey: "email",
+      cellClassName: "font-mono text-mute",
+    },
+    {
+      header: "Phone",
+      accessorKey: "phone",
+      cellClassName: "font-mono text-mute",
+    },
+    {
+      header: "Organization",
+      accessorKey: "organization",
+    },
+    {
+      header: "Job Title",
+      accessorKey: "jobTitle",
+      cellClassName: "text-mute",
+    },
+    {
+      header: "Attendee Type",
+      cell: (item) => <StatusBadge attendeeType={formatAttendeeType(item.attendeeType)} />,
+    },
+    {
+      header: (
+        <button
+          type="button"
+          onClick={() => setSortAscending((prev) => !prev)}
+          className="inline-flex items-center gap-1.5 uppercase tracking-[0.16em] hover:text-gold transition-colors cursor-pointer"
+          title="Click to sort by date"
+        >
+          <span>Registered On</span>
+          <ArrowUpDown size={12} className={sortAscending ? "rotate-180" : ""} />
+        </button>
+      ),
+      cell: (item) => <span className="text-mute">{formatDate(item.createdAt)}</span>,
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* 4 Stat Cards */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Total Registrants"
+          value={stats.total}
+          subtitle="All confirmed forum entries"
+          icon={<Users size={20} strokeWidth={1.5} />}
+        />
+        <StatCard
+          label="Today's Registrations"
+          value={stats.today}
+          subtitle="Signed up today"
+          icon={<Calendar size={20} strokeWidth={1.5} />}
+        />
+        <StatCard
+          label="Company Attendees"
+          value={stats.company}
+          subtitle="Corporate & enterprises"
+          icon={<Building2 size={20} strokeWidth={1.5} />}
+        />
+        <StatCard
+          label="Investors"
+          value={stats.investor}
+          subtitle="Funds & capital principals"
+          icon={<TrendingUp size={20} strokeWidth={1.5} />}
+        />
+      </div>
+
+      {/* Toolbar */}
+      <div className="border border-line bg-ink p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+            <SearchInput
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="Search name, email, phone, organization..."
+              className="w-full sm:max-w-xs"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterSelect
+                id="attendee-type-filter"
+                value={typeFilter}
+                options={ATTENDEE_TYPE_OPTIONS}
+                onChange={handleTypeChange}
+              />
+              <FilterSelect
+                id="attendee-date-filter"
+                value={dateFilter}
+                options={DATE_FILTER_OPTIONS}
+                onChange={handleDateChange}
+              />
+            </div>
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex h-10 items-center justify-center gap-1.5 border border-line px-3 text-xs uppercase tracking-[0.14em] font-medium text-mute transition-colors hover:border-gold hover:text-gold cursor-pointer"
+            >
+              <RotateCcw size={13} />
+              <span>Clear filters</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Error state with retry */}
+      {error && (
+        <div className="border border-rose/30 bg-rose/10 p-5 text-center">
+          <p className="text-xs text-rose">{error}</p>
+          <button
+            type="button"
+            onClick={fetchAttendeesData}
+            className="mt-3 inline-flex h-9 items-center border border-rose px-4 text-xs uppercase tracking-[0.14em] text-rose hover:bg-rose/10 cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Attendees Table */}
+      {loading ? (
+        <div className="border border-line bg-ink p-12 text-center text-sm text-mute">
+          Loading attendees...
+        </div>
+      ) : !error ? (
+        <div>
+          <DataTable
+            columns={columns}
+            data={attendees}
+            keyExtractor={(item) => item.id}
+            emptyMessage={hasActiveFilters ? "No attendees match your filters." : "No attendees yet."}
+          />
+          <Pagination
+            currentPage={currentPage}
+            totalItems={totalCount}
+            pageSize={PAGE_SIZE}
+            onPageChange={setCurrentPage}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}

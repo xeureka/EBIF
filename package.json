@@ -16,7 +16,8 @@
     "format": "prettier --write .",
     "deploy": "pnpm build && wrangler deploy",
     "preview:cf": "pnpm build && wrangler dev",
-    "cf:check": "pnpm build && wrangler deploy --dry-run"
+    "cf:check": "pnpm build && wrangler deploy --dry-run",
+    "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.0",
@@ -47,11 +48,15 @@
     "@tanstack/react-table": "^8.21.0",
     "@tanstack/router-plugin": "^1.168.0",
     "@vitejs/plugin-react": "^5.2.0",
+    "better-auth": "^1.7.15",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.0.0",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.16",
     "lucide-react": "^0.510.0",
+    "pg": "^8.23.1",
     "react": "^19.2.0",
     "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.0",
@@ -69,7 +74,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
+    "@hono/node-server": "^2.1.6",
     "@types/node": "^22.16.5",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "eslint": "^9.20.0",
@@ -79,6 +86,7 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
     "prettier": "^3.4.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.56.1",
     "wrangler": "^4.152.0"
