@@ -1,9 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowRight,
-  ArrowUp,
-  Menu,
-  X,
   Gem,
   Handshake,
   Landmark,
@@ -11,15 +8,11 @@ import {
   Radio,
   Users,
 } from "lucide-react";
-
-const NAV = [
-  { href: "#gathering", label: "About" },
-  { href: "#programme", label: "Programme" },
-  { href: "#rooms", label: "Who attends" },
-  { href: "#join", label: "Join" },
-  { href: "#organisers", label: "Organisers" },
-  { href: "#register", label: "Register" },
-];
+import { SiteHeader } from "@/components/layout/SiteHeader";
+import { SiteFooter } from "@/components/layout/SiteFooter";
+import { BackToTop } from "@/components/ui/BackToTop";
+import { PhotoSlideshow } from "@/components/ui/PhotoSlideshow";
+import { sortedPhotos } from "@/lib/photos";
 
 const PILLARS = [
   {
@@ -187,37 +180,6 @@ const TIERS = [
 
 const MEDIA = ["ETV", "Fana", "EBS", "Arts & Abay", "Sheger", "Ethio FM", "Bisrat FM"];
 
-type PassOption = {
-  id: string;
-  name: string;
-  detail: string;
-  amount: number | null;
-  vat?: boolean;
-  priceLabel?: string;
-  email?: string;
-};
-
-const PROPOSAL_EMAIL = "events@nexabusinessgroup.com";
-
-const PASSES: PassOption[] = [
-  { id: "delegate", name: "Exhibition Presence", detail: "Booth and two participants passes", amount: 485_000, vat: true },
-  { id: "investor", name: "Exhibition Presentation", detail: "Exhibition Booth, Company Hour and two participant passes", amount: 596_000, vat: true },
-  { id: "gala", name: "FULL PARTICIPATION PACKAGE", detail: "Exhibition Booth, Company Hour, Premium Networking Access, two closing dinner seats, Digital Spotlight Package and two participant passes", amount: 1_056_000, vat: true },
-  { id: "shell", name: "REQUEST A SPONSORSHIP PROPOSAL", detail: PROPOSAL_EMAIL, amount: null, priceLabel: "Upon Request", email: PROPOSAL_EMAIL },
-];
-
-function passPrice(item: PassOption): string {
-  if (item.amount === null) return item.priceLabel ?? "Upon Request";
-  return item.amount.toLocaleString("en-ET");
-}
-
-function passPriceWithCurrency(item: PassOption): string {
-  if (item.amount === null) return passPrice(item);
-  return item.vat ? `${passPrice(item)} ETB + VAT` : `${passPrice(item)} ETB`;
-}
-
-const METHODS = ["Telebirr", "CBE Birr", "Bank transfer", "Card"];
-
 const ORGANISER_PHOTOS = import.meta.glob("../../assets/organisers/**/*.{jpg,jpeg,png,webp,avif}", {
   eager: true,
   query: "?url",
@@ -236,22 +198,8 @@ const WHO_ATTENDS_PHOTOS = import.meta.glob("../../assets/gala/who-attends/*.{jp
   import: "default",
 }) as Record<string, string>;
 
-const FOOTER_PHOTOS = import.meta.glob("../../assets/gala/footer/*.{jpg,jpeg,png,webp,avif}", {
-  eager: true,
-  query: "?url",
-  import: "default",
-}) as Record<string, string>;
-
-function sortedPhotos(photos: Record<string, string>, fallback: string): string[] {
-  const images = Object.entries(photos)
-    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-    .map(([, url]) => url);
-  return images.length > 0 ? images : [fallback];
-}
-
 const PROGRAMME_SLIDES = sortedPhotos(PROGRAMME_PHOTOS, "/images/stage.jpg");
 const WHO_ATTENDS_SLIDES = sortedPhotos(WHO_ATTENDS_PHOTOS, "/images/lounge.jpg");
-const FOOTER_SLIDES = sortedPhotos(FOOTER_PHOTOS, "/images/lounge-footer.jpg");
 
 function organiserPhotos(slug: string): string[] {
   const marker = `/organisers/${slug}/`;
@@ -260,27 +208,6 @@ function organiserPhotos(slug: string): string[] {
     .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
     .map(([, url]) => url);
 }
-
-const ORGANISER_LOGOS = import.meta.glob("../../assets/logos/*.{png,jpg,jpeg,svg,webp,avif}", {
-  eager: true,
-  query: "?url",
-  import: "default",
-}) as Record<string, string>;
-
-function organiserLogo(slug: string): string | undefined {
-  const key = slug.replace(/[^a-z0-9]/gi, "").toLowerCase();
-  const hit = Object.entries(ORGANISER_LOGOS).find(([path]) => {
-    const file = (path.split("/").pop() ?? "").replace(/[^a-z0-9]/gi, "").toLowerCase();
-    return file.includes(key);
-  });
-  return hit?.[1];
-}
-
-const LOGO_SLOTS = [
-  { slug: "nexa", label: "NEXA", imgClass: "h-16 w-auto object-contain" },
-  { slug: "commercial-nominees", label: "Commercial Nominees", imgClass: "h-20 w-auto object-contain" },
-  { slug: "paparazzi", label: "Paparazzi", imgClass: "h-16 w-auto object-contain" },
-];
 
 const ORGANISERS = [
   {
@@ -316,7 +243,6 @@ type Interest = {
 
 const EMPTY: Interest = { name: "", organisation: "", email: "", role: "Investor", note: "" };
   const LEGACY_INTEREST_KEY = "nexa-forum-interest";
-  const PAY_KEY = "nexa-forum-payment";
 
 function OrganiserCard({
   name,
@@ -391,60 +317,6 @@ function OrganiserCard({
   );
 }
 
-function PhotoSlideshow({
-  images,
-  alt,
-  className,
-}: {
-  images: string[];
-  alt: string;
-  className: string;
-}) {
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    if (images.length < 2) return;
-    const id = window.setInterval(() => {
-      setIndex((current) => (current + 1) % images.length);
-    }, SLIDE_MS);
-    return () => window.clearInterval(id);
-  }, [images.length]);
-
-  return (
-    <div className={`relative overflow-hidden ${className}`}>
-      {images.map((src, imageIndex) => (
-        <img
-          key={src}
-          src={src}
-          alt={imageIndex === 0 ? alt : ""}
-          aria-hidden={imageIndex === 0 ? undefined : true}
-          loading={imageIndex === 0 ? "eager" : "lazy"}
-          className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1200ms] ease-in-out"
-          style={{
-            opacity: imageIndex === index ? 1 : 0,
-            objectPosition: src.toLowerCase().includes("founder") ? "right center" : "center",
-          }}
-        />
-      ))}
-      {images.length > 1 && (
-        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
-          {images.map((src, imageIndex) => (
-            <button
-              key={src}
-              type="button"
-              aria-label={`Show slide ${imageIndex + 1}`}
-              onClick={() => setIndex(imageIndex)}
-              className={`h-1.5 rounded-full transition-all ${
-                imageIndex === index ? "w-5 bg-white" : "w-1.5 bg-white/50 hover:bg-white/80"
-              }`}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 const GALA_DATE = new Date("2026-11-28T00:00:00");
 
 function useCountdown(target: Date) {
@@ -497,16 +369,9 @@ function Countdown({ className = "" }: { className?: string }) {
 
 export function GalaSite() {
   const eventTargetCounts = useEventTargetCounts();
-  const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Interest>(EMPTY);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
-  const [payMethod, setPayMethod] = useState(METHODS[0]);
-  const [passId, setPassId] = useState(PASSES[0].id);
-  const [payer, setPayer] = useState({ name: "", organisation: "", email: "", phone: "" });
-  const [receipt, setReceipt] = useState("");
-  const [payError, setPayError] = useState("");
-  const pass = PASSES.find((item) => item.id === passId) ?? PASSES[0];
 
   useEffect(() => {
     try {
@@ -514,6 +379,12 @@ export function GalaSite() {
     } catch {
       // Storage may be unavailable in restricted browser contexts.
     }
+  }, []);
+
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
   function submit(e: FormEvent) {
@@ -533,88 +404,9 @@ export function GalaSite() {
     setError("");
   }
 
-  function pay(e: FormEvent) {
-    e.preventDefault();
-    if (!payer.name.trim() || !payer.email.includes("@") || payer.phone.trim().length < 9) {
-      setPayError("Name, a valid email and a phone number are required.");
-      setReceipt("");
-      return;
-    }
-    const reference = `NX-${Date.now().toString().slice(-8)}`;
-    const order = {
-      reference,
-      pass: pass.name,
-      amount: pass.amount,
-      amountLabel: passPriceWithCurrency(pass),
-      method: payMethod,
-      payer,
-      status: "awaiting-gateway",
-    };
-    try {
-      localStorage.setItem(PAY_KEY, JSON.stringify(order));
-    } catch {
-      /* storage unavailable in this context; the order is still shown below */
-    }
-    setPayError("");
-    setReceipt(reference);
-  }
-
   return (
     <div className="w-full min-h-screen bg-paper text-cream">
-      <header className="w-full sticky top-0 z-40 border-b border-line bg-ink/90 backdrop-blur-md">
-        <div className="w-full flex h-16 items-center justify-between px-5">
-          <a href="#top" className="flex min-w-0 items-center gap-2.5">
-            <img
-              src="/images/LOGO.png"
-              alt=""
-              aria-hidden="true"
-              className="h-9 w-9 shrink-0 rounded-full border border-line bg-white object-cover"
-            />
-<span className="whitespace-nowrap font-display text-[clamp(0.72rem,3.5vw,1.25rem)] tracking-[0.04em]">
-               ETHIOPIAN BUSINESS AND INVESTMENT FORUM
-             </span>
-          </a>
-          <nav className="hidden items-center gap-7 md:flex">
-            {NAV.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="text-[12px] uppercase tracking-[0.18em] text-mute transition-colors hover:text-cream"
-              >
-                {item.label}
-              </a>
-            ))}
-            <a
-              href="#pay"
-              className="border border-gold bg-gold px-4 py-2 text-[12px] uppercase tracking-[0.18em] text-ink transition-colors hover:bg-gold-2"
-            >
-              Pay now
-            </a>
-          </nav>
-          <button
-            type="button"
-            className="grid h-11 w-11 place-items-center border border-line md:hidden"
-            aria-label={open ? "Close menu" : "Open menu"}
-            onClick={() => setOpen((v) => !v)}
-          >
-            {open ? <X size={18} /> : <Menu size={18} />}
-          </button>
-        </div>
-        {open && (
-          <div className="border-t border-line bg-ink px-5 py-4 md:hidden">
-            {NAV.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className="block py-3 text-sm uppercase tracking-[0.16em] text-cream"
-              >
-                {item.label}
-              </a>
-            ))}
-          </div>
-        )}
-      </header>
+      <SiteHeader />
 
       <main id="top" className="w-full">
         <section className="w-full relative isolate min-h-[88vh] overflow-hidden">
@@ -646,12 +438,6 @@ export function GalaSite() {
                international partners for meaningful connections, opportunity discovery and commercial collaboration.
              </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a
-                href="#pay"
-                className="inline-flex h-12 items-center gap-2 bg-gold px-5 text-[12px] font-medium uppercase tracking-[0.18em] text-ink"
-              >
-                Pay for a pass <ArrowRight size={16} />
-              </a>
               <a
                 href="#join"
                 className="inline-flex h-12 items-center border border-ink px-5 text-[12px] uppercase tracking-[0.18em] text-ink"
@@ -951,151 +737,11 @@ export function GalaSite() {
             </form>
           </div>
         </section>
-        
-        <section id="pay" className="border-t border-line">
-          <div className="w-full grid gap-10 px-5 py-20 lg:grid-cols-2">
-            <div>
-              <p className="text-[12px] uppercase tracking-[0.28em] text-gold">Pay</p>
-              <h2 className="mt-3 font-display text-4xl sm:text-5xl">Pay the desk directly.</h2>
-              <p className="mt-4 text-mute">
-                Choose a pass and a method. This page records the order and a reference. It does not charge a card or a Telebirr wallet until a live gateway is connected.
-              </p>
-              <p className="mt-6 font-display text-5xl text-gold-2">
-                {passPrice(pass)}{" "}
-                {pass.amount !== null && <span className="text-2xl">ETB{pass.vat ? " + VAT" : ""}</span>}
-              </p>
-              <p className="text-sm text-mute">
-                {pass.name} ·{" "}
-                {pass.email ? (
-                  <a href={`mailto:${pass.email}`} className="text-gold-2 underline underline-offset-4">
-                    {pass.email}
-                  </a>
-                ) : (
-                  pass.detail
-                )}
-              </p>
-            </div>
-            <form onSubmit={pay} className="space-y-4 border border-line bg-ink p-6">
-              <div className="grid gap-2 sm:grid-cols-2">
-                {PASSES.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setPassId(item.id)}
-                    className={`border px-3 py-3 text-left ${item.id === passId ? "border-gold bg-ink-2" : "border-line"}`}
-                  >
-                    <span className="block text-sm font-medium">{item.name}</span>
-                    <span className="text-xs text-mute">{passPriceWithCurrency(item)}</span>
-                  </button>
-                ))}
-              </div>
-              {pass.email ? (
-                <div className="space-y-4 border border-line bg-ink-2 p-5">
-                  <p className="text-sm text-mute">
-                    Sponsorship proposals are sent on request. Email the desk and we will send the document pack.
-                  </p>
-                  <a
-                    href={`mailto:${pass.email}?subject=${encodeURIComponent("Sponsorship proposal request - Ethiopian Business and Investment Forum")}`}
-                    className="flex h-12 w-full items-center justify-center bg-gold px-4 text-center text-[12px] font-medium uppercase tracking-[0.18em] text-ink"
-                  >
-                    Email {pass.email}
-                  </a>
-                </div>
-              ) : (
-                <>
-                  <Field label="Name">
-                    <input className="field" value={payer.name} autoComplete="name" onChange={(e) => setPayer({ ...payer, name: e.target.value })} />
-                  </Field>
-                  <Field label="Organisation">
-                    <input className="field" value={payer.organisation} onChange={(e) => setPayer({ ...payer, organisation: e.target.value })} />
-                  </Field>
-                  <Field label="Email">
-                    <input type="email" className="field" value={payer.email} autoComplete="email" onChange={(e) => setPayer({ ...payer, email: e.target.value })} />
-                  </Field>
-                  <Field label="Phone">
-                    <input className="field" value={payer.phone} autoComplete="tel" inputMode="tel" onChange={(e) => setPayer({ ...payer, phone: e.target.value })} />
-                  </Field>
-                  <Field label="Method">
-                    <select className="field" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-                      {METHODS.map((method) => (
-                        <option key={method}>{method}</option>
-                      ))}
-                    </select>
-                  </Field>
-                  {payError && <p className="text-sm text-rose">{payError}</p>}
-                  {receipt && (
-                    <p className="text-sm text-gold-2">
-                      Order {receipt} is waiting for {payMethod}. No money has moved.
-                    </p>
-                  )}
-                  <button type="submit" className="h-12 w-full bg-gold text-[12px] font-medium uppercase tracking-[0.18em] text-ink">
-                    Place payment order · {passPriceWithCurrency(pass)}
-                  </button>
-                </>
-              )}
-            </form>
-          </div>
-        </section>
-
-      
       </main>
 
-      <footer className="w-full border-t border-line">
-        <div className="w-full px-5 pt-10">
-          <div className="relative isolate overflow-hidden border border-line bg-ink-2">
-            <PhotoSlideshow
-              images={FOOTER_SLIDES}
-              alt="Quiet investor lounge with walnut and brass lamps"
-              className="h-56 w-full sm:h-72 lg:h-80"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-ink/80 via-ink/25 to-transparent" />
-            <div className="absolute inset-0 flex items-end p-6 sm:p-8">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.28em] text-gold-2">The lounge</p>
-                <p className="mt-2 font-display text-3xl text-ink sm:text-4xl">
-                  A quieter room for the next conversation.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="w-full flex flex-col gap-4 px-5 py-10 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="font-display text-2xl tracking-[0.08em]">ETHIOPIAN BUSINESS AND INVESTMENT FORUM</p>
-            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-mute">
-             Addis Ababa , Ethiopia
-            </p>
-          </div>
-          <div className="flex w-full flex-wrap items-center justify-center gap-3 sm:justify-end">
-            {LOGO_SLOTS.map(({ slug, label, imgClass }) => {
-              const src = organiserLogo(slug);
-              return (
-                <div
-                  key={slug}
-                  className="flex shrink-0 items-center justify-center border border-line bg-ink/60 px-3 py-2"
-                >
-                  {src ? (
-                    <img src={src} alt={label} className={imgClass} />
-                  ) : (
-                    <span className="text-center text-[10px] uppercase tracking-[0.14em] text-mute">
-                      {label}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
 
-      <button
-        type="button"
-        aria-label="Back to top"
-        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        className="fixed right-5 bottom-5 z-30 grid h-11 w-11 place-items-center border border-line bg-ink/90 text-cream shadow-lg backdrop-blur-md transition-colors hover:border-gold hover:text-gold"
-      >
-        <ArrowUp size={18} strokeWidth={1.75} />
-      </button>
+      <BackToTop />
 
       <style>{`
         .field {
