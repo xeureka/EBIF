@@ -24,12 +24,11 @@ async function main() {
   const config = parse(dbUrl);
   config.ssl = { rejectUnauthorized: false };
 
-  console.log("Connecting to database for ticket code backfill...");
   const client = new Client(config);
   await client.connect();
 
   try {
-    // Check if column exists first
+    // 1. Check if ticket_code column exists
     const colCheck = await client.query(`
       SELECT column_name 
       FROM information_schema.columns 
@@ -39,76 +38,88 @@ async function main() {
     `);
 
     if (colCheck.rows.length === 0) {
-      console.error("Column 'ticket_code' does not exist on table 'registrations'. Please run migration 1 first.");
-      process.exit(1);
+      throw new Error("Column 'ticket_code' does not exist on table 'registrations'. Apply migration 1 first.");
     }
 
-    // Fetch existing registrations without ticket codes
-    const res = await client.query(`
-      SELECT id FROM public."registrations" 
-      WHERE ticket_code IS NULL
-      ORDER BY created_at ASC;
-    `);
+    // 2. Query initial counts
+    const skippedRes = await client.query(`SELECT count(*)::int as count FROM public."registrations" WHERE ticket_code IS NOT NULL;`);
+    const initialSkipped: number = skippedRes.rows[0].count;
 
-    const unbackfilled = res.rows;
-    console.log(`Found ${unbackfilled.length} registrations requiring ticket codes.`);
+    const unassignedRes = await client.query(`SELECT count(*)::int as count FROM public."registrations" WHERE ticket_code IS NULL;`);
+    const toBackfill: number = unassignedRes.rows[0].count;
 
-    if (unbackfilled.length === 0) {
-      console.log("All registrations already have ticket codes. Nothing to backfill.");
+    if (toBackfill === 0) {
+      console.log(`Backfill summary: updated=0, skipped=${initialSkipped}, remaining=0`);
       return;
     }
 
-    // Set of allocated codes in this run to avoid collisions
+    // 3. Track existing ticket codes to prevent collisions
     const assignedCodes = new Set<string>();
-
-    // Fetch existing non-null codes to avoid collisions
     const existingCodesRes = await client.query(`
       SELECT ticket_code FROM public."registrations" WHERE ticket_code IS NOT NULL;
     `);
     for (const row of existingCodesRes.rows) {
-      assignedCodes.add(normalizeTicketCode(row.ticket_code));
-    }
-
-    let updatedCount = 0;
-    await client.query("BEGIN");
-
-    try {
-      for (const row of unbackfilled) {
-        let code = generateTicketCode();
-        let normalized = normalizeTicketCode(code);
-        let retries = 0;
-
-        while (assignedCodes.has(normalized) && retries < 10) {
-          code = generateTicketCode();
-          normalized = normalizeTicketCode(code);
-          retries++;
-        }
-
-        if (assignedCodes.has(normalized)) {
-          throw new Error("Failed to generate unique ticket code during backfill");
-        }
-
-        assignedCodes.add(normalized);
-
-        await client.query(
-          `UPDATE public."registrations" SET ticket_code = $1 WHERE id = $2;`,
-          [code, row.id],
-        );
-        updatedCount++;
+      if (row.ticket_code) {
+        assignedCodes.add(normalizeTicketCode(row.ticket_code));
       }
-
-      await client.query("COMMIT");
-      console.log(`✓ Successfully backfilled ${updatedCount} registrations with unique ticket codes.`);
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
     }
+
+    // 4. Fetch IDs of rows requiring backfill
+    const rowsRes = await client.query(`
+      SELECT id FROM public."registrations" 
+      WHERE ticket_code IS NULL
+      ORDER BY created_at ASC;
+    `);
+    const rows = rowsRes.rows;
+
+    const BATCH_SIZE = 50;
+    let updatedCount = 0;
+
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      await client.query("BEGIN");
+      try {
+        for (const row of batch) {
+          let code = generateTicketCode();
+          let normalized = normalizeTicketCode(code);
+          let retries = 0;
+
+          while (assignedCodes.has(normalized) && retries < 15) {
+            code = generateTicketCode();
+            normalized = normalizeTicketCode(code);
+            retries++;
+          }
+
+          if (assignedCodes.has(normalized)) {
+            throw new Error("Collision threshold reached while generating ticket code");
+          }
+
+          assignedCodes.add(normalized);
+
+          await client.query(
+            `UPDATE public."registrations" SET ticket_code = $1 WHERE id = $2 AND ticket_code IS NULL;`,
+            [code, row.id],
+          );
+          updatedCount++;
+        }
+        await client.query("COMMIT");
+      } catch (batchErr) {
+        await client.query("ROLLBACK");
+        throw batchErr;
+      }
+    }
+
+    // 5. Query final remaining count
+    const remainingRes = await client.query(`SELECT count(*)::int as count FROM public."registrations" WHERE ticket_code IS NULL;`);
+    const remainingCount: number = remainingRes.rows[0].count;
+
+    console.log(`Backfill summary: updated=${updatedCount}, skipped=${initialSkipped}, remaining=${remainingCount}`);
   } finally {
     await client.end();
   }
 }
 
 main().catch((err) => {
-  console.error("Backfill failed:", err);
+  console.error("Backfill failed:", err.message);
   process.exit(1);
 });

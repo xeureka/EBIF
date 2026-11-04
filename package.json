@@ -18,6 +18,7 @@
     "preview:cf": "pnpm build && wrangler dev",
     "cf:check": "pnpm build && wrangler deploy --dry-run",
     "db:migrate": "tsx scripts/migrate.ts",
+    "db:backfill-tickets": "tsx scripts/backfill-ticket-codes.ts",
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
