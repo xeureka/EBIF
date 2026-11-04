@@ -4,6 +4,9 @@ import { registrationSchema } from "../../shared/schemas";
 import { registrations, rateLimit } from "../db/schema";
 import type { AppDb } from "../db/client";
 import { generateUniqueTicketCode } from "../modules/tickets/code";
+import { getServerEnv } from "../env";
+import { ResendEmailProvider } from "../modules/email/resend";
+import { sendConfirmationEmail } from "../modules/email/service";
 
 export const registrationsRouter = new Hono<{
   Variables: {
@@ -141,9 +144,11 @@ registrationsRouter.post("/", async (c) => {
   // Generate unique Crockford Base32 ticket code
   const ticketCode = await generateUniqueTicketCode(db);
 
+  const regId = crypto.randomUUID();
+
   // Parameterized insert
   await db.insert(registrations).values({
-    id: crypto.randomUUID(),
+    id: regId,
     fullName,
     email,
     phone: formattedPhone,
@@ -155,6 +160,33 @@ registrationsRouter.post("/", async (c) => {
     ticketCode,
     createdAt: new Date(),
   });
+
+  // Non-blocking confirmation email dispatch
+  const serverEnv = getServerEnv(c.env as Record<string, string | undefined>);
+  const emailProvider = new ResendEmailProvider({
+    apiKey: serverEnv.RESEND_API_KEY,
+    from: serverEnv.EMAIL_FROM,
+    replyTo: serverEnv.EMAIL_REPLY_TO,
+  });
+
+  const emailPromise = sendConfirmationEmail({
+    db,
+    attendee: {
+      id: regId,
+      fullName,
+      email,
+      organization,
+      ticketCode,
+    },
+    provider: emailProvider,
+    siteUrl: serverEnv.SITE_URL,
+  });
+
+  if (c.executionCtx && typeof c.executionCtx.waitUntil === "function") {
+    c.executionCtx.waitUntil(emailPromise);
+  } else {
+    emailPromise.catch((err) => console.error("Async email dispatch error:", err));
+  }
 
   return c.json({ ok: true, ticketCode });
 });
