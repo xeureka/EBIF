@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { sql, and, or, ilike, desc, asc, eq } from "drizzle-orm";
+import { sql, and, or, ilike, desc, asc, eq, inArray } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 import {
   adminCreateSchema,
@@ -7,7 +7,7 @@ import {
   attendeesQuerySchema,
   adminsQuerySchema,
 } from "../../shared/schemas";
-import { registrations, user, account, session, rateLimit } from "../db/schema";
+import { registrations, user, account, session, rateLimit, checkIns } from "../db/schema";
 import { requireAdmin, type AdminContextEnv } from "../middleware/admin";
 import { recordAuditLog } from "../utils/audit";
 import { getServerEnv } from "../env";
@@ -70,7 +70,7 @@ adminRouter.get("/attendees", async (c) => {
     );
   }
 
-  const { search, attendeeType, range, sort, page, pageSize } = queryResult.data;
+  const { search, attendeeType, range, sort, checkInStatus, checkInDay, page, pageSize } = queryResult.data;
   const conditions = [];
 
   // Search filter
@@ -83,6 +83,7 @@ adminRouter.get("/attendees", async (c) => {
         ilike(registrations.phone, term),
         ilike(registrations.organization, term),
         ilike(registrations.jobTitle, term),
+        ilike(registrations.ticketCode, term),
       ),
     );
   }
@@ -98,6 +99,17 @@ adminRouter.get("/attendees", async (c) => {
     } else if (attendeeType === "international_partner") {
       conditions.push(sql`lower(${registrations.attendeeType}) in ('international_partner', 'international partner')`);
     }
+  }
+
+  // Check-in filter
+  if (checkInStatus === "checked_in") {
+    conditions.push(
+      sql`EXISTS (SELECT 1 FROM public."check_ins" WHERE public."check_ins".registration_id = ${registrations.id} AND public."check_ins".event_day = ${checkInDay})`,
+    );
+  } else if (checkInStatus === "not_checked_in") {
+    conditions.push(
+      sql`NOT EXISTS (SELECT 1 FROM public."check_ins" WHERE public."check_ins".registration_id = ${registrations.id} AND public."check_ins".event_day = ${checkInDay})`,
+    );
   }
 
   // Date range filter
@@ -140,6 +152,7 @@ adminRouter.get("/attendees", async (c) => {
         investor: sql<number>`count(*) filter (where lower(${registrations.attendeeType}) in ('investor'))::int`,
         government: sql<number>`count(*) filter (where lower(${registrations.attendeeType}) in ('government', 'government institution'))::int`,
         internationalPartner: sql<number>`count(*) filter (where lower(${registrations.attendeeType}) in ('international_partner', 'international partner'))::int`,
+        checkedInToday: sql<number>`(SELECT count(distinct registration_id)::int FROM public."check_ins" WHERE checked_in_at >= date_trunc('day', now()))`,
       })
       .from(registrations),
   ]);
@@ -152,7 +165,32 @@ adminRouter.get("/attendees", async (c) => {
     investor: 0,
     government: 0,
     internationalPartner: 0,
+    checkedInToday: 0,
   };
+
+  // Batch query check-in status for this page of attendees
+  const attendeeIds = items.map((i) => i.id);
+  const checkInsMap: Record<string, { day1: boolean; day2: boolean }> = {};
+  for (const id of attendeeIds) {
+    checkInsMap[id] = { day1: false, day2: false };
+  }
+
+  if (attendeeIds.length > 0) {
+    const checkInRows = await db
+      .select({
+        registrationId: checkIns.registrationId,
+        eventDay: checkIns.eventDay,
+      })
+      .from(checkIns)
+      .where(inArray(checkIns.registrationId, attendeeIds));
+
+    for (const row of checkInRows) {
+      if (checkInsMap[row.registrationId]) {
+        if (row.eventDay === 1) checkInsMap[row.registrationId].day1 = true;
+        if (row.eventDay === 2) checkInsMap[row.registrationId].day2 = true;
+      }
+    }
+  }
 
   const formattedItems = items.map((item) => {
     let normalizedType: "company" | "investor" | "government" | "international_partner" = "company";
@@ -172,6 +210,9 @@ adminRouter.get("/attendees", async (c) => {
       attendingDays: item.attendingDays,
       createdAt: item.createdAt.toISOString(),
       reference: item.reference,
+      ticketCode: item.ticketCode,
+      day1CheckedIn: checkInsMap[item.id]?.day1 || false,
+      day2CheckedIn: checkInsMap[item.id]?.day2 || false,
     };
   });
 

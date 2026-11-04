@@ -71,6 +71,8 @@ export const attendeesQuerySchema = z.object({
   attendeeType: z.enum(["all", ...ATTENDEE_TYPES]).optional().default("all"),
   range: z.enum(["all", "today", "7d", "30d"]).optional().default("all"),
   sort: z.enum(["newest", "oldest"]).optional().default("newest"),
+  checkInStatus: z.enum(["all", "checked_in", "not_checked_in"]).optional().default("all"),
+  checkInDay: z.coerce.number().int().refine((d): d is 1 | 2 => d === 1 || d === 2).optional().default(1),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(10),
 });

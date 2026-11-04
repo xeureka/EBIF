@@ -125,6 +125,8 @@ export async function getAttendees(
     attendeeType: "all",
     range: "all",
     sort: "newest",
+    checkInStatus: "all",
+    checkInDay: 1,
     page: 1,
     pageSize: 10,
   },
@@ -138,6 +140,12 @@ export async function getAttendees(
     query.set("range", params.range);
   }
   if (params.sort) query.set("sort", params.sort);
+  if (params.checkInStatus && params.checkInStatus !== "all") {
+    query.set("checkInStatus", params.checkInStatus);
+  }
+  if (params.checkInDay) {
+    query.set("checkInDay", params.checkInDay.toString());
+  }
   if (params.page) query.set("page", params.page.toString());
   if (params.pageSize) query.set("pageSize", params.pageSize.toString());
 
