@@ -16,7 +16,9 @@ import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminSplatRouteImport } from './routes/admin/$'
 import { Route as AdminAdminsRouteImport } from './routes/admin/admins'
 import { Route as AdminAttendeesRouteImport } from './routes/admin/attendees'
+import { Route as AdminCheckInRouteImport } from './routes/admin/check-in'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as TicketCodeRouteImport } from './routes/ticket/$code'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -53,10 +55,20 @@ const AdminAttendeesRoute = AdminAttendeesRouteImport.update({
   path: '/attendees',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCheckInRoute = AdminCheckInRouteImport.update({
+  id: '/check-in',
+  path: '/check-in',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => AdminRoute,
+} as any)
+const TicketCodeRoute = TicketCodeRouteImport.update({
+  id: '/ticket/$code',
+  path: '/ticket/$code',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -66,7 +78,9 @@ export interface FileRoutesByFullPath {
   '/admin/$': typeof AdminSplatRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/attendees': typeof AdminAttendeesRoute
+  '/admin/check-in': typeof AdminCheckInRoute
   '/admin/login': typeof AdminLoginRoute
+  '/ticket/$code': typeof TicketCodeRoute
   '/admin/': typeof AdminIndexRoute
 }
 export interface FileRoutesByTo {
@@ -75,7 +89,9 @@ export interface FileRoutesByTo {
   '/admin/$': typeof AdminSplatRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/attendees': typeof AdminAttendeesRoute
+  '/admin/check-in': typeof AdminCheckInRoute
   '/admin/login': typeof AdminLoginRoute
+  '/ticket/$code': typeof TicketCodeRoute
   '/admin': typeof AdminIndexRoute
 }
 export interface FileRoutesById {
@@ -86,7 +102,9 @@ export interface FileRoutesById {
   '/admin/$': typeof AdminSplatRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/attendees': typeof AdminAttendeesRoute
+  '/admin/check-in': typeof AdminCheckInRoute
   '/admin/login': typeof AdminLoginRoute
+  '/ticket/$code': typeof TicketCodeRoute
   '/admin/': typeof AdminIndexRoute
 }
 export interface FileRouteTypes {
@@ -98,7 +116,9 @@ export interface FileRouteTypes {
     | '/admin/$'
     | '/admin/admins'
     | '/admin/attendees'
+    | '/admin/check-in'
     | '/admin/login'
+    | '/ticket/$code'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -107,7 +127,9 @@ export interface FileRouteTypes {
     | '/admin/$'
     | '/admin/admins'
     | '/admin/attendees'
+    | '/admin/check-in'
     | '/admin/login'
+    | '/ticket/$code'
     | '/admin'
   id:
     | '__root__'
@@ -117,7 +139,9 @@ export interface FileRouteTypes {
     | '/admin/$'
     | '/admin/admins'
     | '/admin/attendees'
+    | '/admin/check-in'
     | '/admin/login'
+    | '/ticket/$code'
     | '/admin/'
   fileRoutesById: FileRoutesById
 }
@@ -125,6 +149,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   EvisaRoute: typeof EvisaRoute
+  TicketCodeRoute: typeof TicketCodeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -178,12 +203,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAttendeesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/check-in': {
+      id: '/admin/check-in'
+      path: '/check-in'
+      fullPath: '/admin/check-in'
+      preLoaderRoute: typeof AdminCheckInRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/login': {
       id: '/admin/login'
       path: '/login'
       fullPath: '/admin/login'
       preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/ticket/$code': {
+      id: '/ticket/$code'
+      path: '/ticket/$code'
+      fullPath: '/ticket/$code'
+      preLoaderRoute: typeof TicketCodeRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -192,6 +231,7 @@ interface AdminRouteChildren {
   AdminSplatRoute: typeof AdminSplatRoute
   AdminAdminsRoute: typeof AdminAdminsRoute
   AdminAttendeesRoute: typeof AdminAttendeesRoute
+  AdminCheckInRoute: typeof AdminCheckInRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -200,6 +240,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminSplatRoute: AdminSplatRoute,
   AdminAdminsRoute: AdminAdminsRoute,
   AdminAttendeesRoute: AdminAttendeesRoute,
+  AdminCheckInRoute: AdminCheckInRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
@@ -210,6 +251,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   EvisaRoute: EvisaRoute,
+  TicketCodeRoute: TicketCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

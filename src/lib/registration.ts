@@ -26,14 +26,14 @@ const MAP_TYPE_TO_SHARED: Record<AttendeeType, SharedAttendeeType> = {
   "International Partner": "international_partner",
 };
 
-export async function submitRegistration(payload: RegistrationPayload): Promise<void> {
+export async function submitRegistration(payload: RegistrationPayload): Promise<{ ok: boolean; ticketCode?: string }> {
   // Extract 9 digits from phone number
   const rawDigits = payload.phone.replace(/\D/g, "");
   const cleanPhone = rawDigits.startsWith("251") ? rawDigits.slice(3) : rawDigits;
 
   const sharedType = MAP_TYPE_TO_SHARED[payload.attendeeType] || "company";
 
-  await registerAttendee({
+  return await registerAttendee({
     fullName: payload.name.trim(),
     email: payload.email.trim(),
     phone: cleanPhone,

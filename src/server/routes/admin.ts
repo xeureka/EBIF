@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { sql, and, or, ilike, desc, asc, eq } from "drizzle-orm";
+import { sql, and, or, ilike, desc, asc, eq, inArray } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 import {
   adminCreateSchema,
@@ -7,14 +7,22 @@ import {
   attendeesQuerySchema,
   adminsQuerySchema,
 } from "../../shared/schemas";
-import { registrations, user, account, session } from "../db/schema";
+import { registrations, user, account, session, rateLimit, checkIns } from "../db/schema";
 import { requireAdmin, type AdminContextEnv } from "../middleware/admin";
 import { recordAuditLog } from "../utils/audit";
+import { getServerEnv } from "../env";
+import { generateUniqueTicketCode } from "../modules/tickets/code";
+import { ResendEmailProvider } from "../modules/email/resend";
+import { sendConfirmationEmail } from "../modules/email/service";
+import { checkInRouter } from "./checkin";
 
 export const adminRouter = new Hono<AdminContextEnv>();
 
 // Apply requireAdmin to all /api/admin/* endpoints
 adminRouter.use("*", requireAdmin);
+
+// Mount Check-in router under /api/admin/check-in
+adminRouter.route("/check-in", checkInRouter);
 
 /**
  * Generate a random 16-character secure password without look-alike characters.
@@ -62,7 +70,7 @@ adminRouter.get("/attendees", async (c) => {
     );
   }
 
-  const { search, attendeeType, range, sort, page, pageSize } = queryResult.data;
+  const { search, attendeeType, range, sort, checkInStatus, checkInDay, page, pageSize } = queryResult.data;
   const conditions = [];
 
   // Search filter
@@ -75,6 +83,7 @@ adminRouter.get("/attendees", async (c) => {
         ilike(registrations.phone, term),
         ilike(registrations.organization, term),
         ilike(registrations.jobTitle, term),
+        ilike(registrations.ticketCode, term),
       ),
     );
   }
@@ -90,6 +99,17 @@ adminRouter.get("/attendees", async (c) => {
     } else if (attendeeType === "international_partner") {
       conditions.push(sql`lower(${registrations.attendeeType}) in ('international_partner', 'international partner')`);
     }
+  }
+
+  // Check-in filter
+  if (checkInStatus === "checked_in") {
+    conditions.push(
+      sql`EXISTS (SELECT 1 FROM public."check_ins" WHERE public."check_ins".registration_id = ${registrations.id} AND public."check_ins".event_day = ${checkInDay})`,
+    );
+  } else if (checkInStatus === "not_checked_in") {
+    conditions.push(
+      sql`NOT EXISTS (SELECT 1 FROM public."check_ins" WHERE public."check_ins".registration_id = ${registrations.id} AND public."check_ins".event_day = ${checkInDay})`,
+    );
   }
 
   // Date range filter
@@ -132,6 +152,7 @@ adminRouter.get("/attendees", async (c) => {
         investor: sql<number>`count(*) filter (where lower(${registrations.attendeeType}) in ('investor'))::int`,
         government: sql<number>`count(*) filter (where lower(${registrations.attendeeType}) in ('government', 'government institution'))::int`,
         internationalPartner: sql<number>`count(*) filter (where lower(${registrations.attendeeType}) in ('international_partner', 'international partner'))::int`,
+        checkedInToday: sql<number>`(SELECT count(distinct registration_id)::int FROM public."check_ins" WHERE checked_in_at >= date_trunc('day', now()))`,
       })
       .from(registrations),
   ]);
@@ -144,7 +165,32 @@ adminRouter.get("/attendees", async (c) => {
     investor: 0,
     government: 0,
     internationalPartner: 0,
+    checkedInToday: 0,
   };
+
+  // Batch query check-in status for this page of attendees
+  const attendeeIds = items.map((i) => i.id);
+  const checkInsMap: Record<string, { day1: boolean; day2: boolean }> = {};
+  for (const id of attendeeIds) {
+    checkInsMap[id] = { day1: false, day2: false };
+  }
+
+  if (attendeeIds.length > 0) {
+    const checkInRows = await db
+      .select({
+        registrationId: checkIns.registrationId,
+        eventDay: checkIns.eventDay,
+      })
+      .from(checkIns)
+      .where(inArray(checkIns.registrationId, attendeeIds));
+
+    for (const row of checkInRows) {
+      if (checkInsMap[row.registrationId]) {
+        if (row.eventDay === 1) checkInsMap[row.registrationId].day1 = true;
+        if (row.eventDay === 2) checkInsMap[row.registrationId].day2 = true;
+      }
+    }
+  }
 
   const formattedItems = items.map((item) => {
     let normalizedType: "company" | "investor" | "government" | "international_partner" = "company";
@@ -164,6 +210,9 @@ adminRouter.get("/attendees", async (c) => {
       attendingDays: item.attendingDays,
       createdAt: item.createdAt.toISOString(),
       reference: item.reference,
+      ticketCode: item.ticketCode,
+      day1CheckedIn: checkInsMap[item.id]?.day1 || false,
+      day2CheckedIn: checkInsMap[item.id]?.day2 || false,
     };
   });
 
@@ -436,4 +485,133 @@ adminRouter.patch("/admins/:id/status", async (c) => {
   });
 
   return c.json({ ok: true, status });
+});
+
+/**
+ * POST /api/admin/attendees/:id/resend-email
+ * Resends confirmation email for a registered attendee.
+ * Rate limited to prevent spam. Auto-generates ticket code if not already present.
+ */
+adminRouter.post("/attendees/:id/resend-email", async (c) => {
+  const db = c.get("db");
+  const currentAdmin = c.get("adminUser");
+  const attendeeId = c.req.param("id");
+
+  // Rate limiting: max 5 resend requests per minute per admin
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const rateLimitKey = `resend:${currentAdmin.id}`;
+
+  try {
+    const [existingRate] = await db
+      .select()
+      .from(rateLimit)
+      .where(eq(rateLimit.key, rateLimitKey))
+      .limit(1);
+
+    if (existingRate) {
+      if (now - existingRate.lastRequest < windowMs) {
+        if (existingRate.count >= 5) {
+          return c.json(
+            {
+              error: {
+                code: "TOO_MANY_REQUESTS",
+                message: "Too many email resend requests. Please wait a minute.",
+              },
+            },
+            429,
+          );
+        }
+        await db
+          .update(rateLimit)
+          .set({ count: existingRate.count + 1, lastRequest: now })
+          .where(eq(rateLimit.id, existingRate.id));
+      } else {
+        await db
+          .update(rateLimit)
+          .set({ count: 1, lastRequest: now })
+          .where(eq(rateLimit.id, existingRate.id));
+      }
+    } else {
+      await db.insert(rateLimit).values({
+        id: crypto.randomUUID(),
+        key: rateLimitKey,
+        count: 1,
+        lastRequest: now,
+      });
+    }
+  } catch (err) {
+    console.error("Resend rate limit error:", err);
+  }
+
+  // Find registration
+  const [attendee] = await db
+    .select()
+    .from(registrations)
+    .where(eq(registrations.id, attendeeId))
+    .limit(1);
+
+  if (!attendee) {
+    return c.json(
+      { error: { code: "NOT_FOUND", message: "Attendee registration not found" } },
+      404,
+    );
+  }
+
+  let ticketCode = attendee.ticketCode;
+  if (!ticketCode) {
+    ticketCode = await generateUniqueTicketCode(db);
+    await db
+      .update(registrations)
+      .set({ ticketCode })
+      .where(eq(registrations.id, attendee.id));
+  }
+
+  const serverEnv = getServerEnv(c.env as Record<string, string | undefined>);
+  const emailProvider = new ResendEmailProvider({
+    apiKey: serverEnv.RESEND_API_KEY,
+    from: serverEnv.EMAIL_FROM,
+    replyTo: serverEnv.EMAIL_REPLY_TO,
+  });
+
+  const sendResult = await sendConfirmationEmail({
+    db,
+    attendee: {
+      id: attendee.id,
+      fullName: attendee.fullName,
+      email: attendee.email,
+      organization: attendee.organization,
+      ticketCode,
+    },
+    provider: emailProvider,
+    siteUrl: serverEnv.SITE_URL,
+  });
+
+  // Record audit log
+  await recordAuditLog({
+    db,
+    actorAdminId: currentAdmin.id,
+    action: "RESEND_CONFIRMATION_EMAIL",
+    targetType: "registration",
+    targetId: attendee.id,
+    metadata: {
+      recipientEmail: attendee.email,
+      success: sendResult.ok,
+      providerId: sendResult.providerId,
+    },
+  });
+
+  if (!sendResult.ok) {
+    return c.json(
+      {
+        error: {
+          code: "EMAIL_SEND_FAILED",
+          message: sendResult.error || "Failed to deliver email through provider",
+        },
+      },
+      502,
+    );
+  }
+
+  return c.json({ ok: true });
 });

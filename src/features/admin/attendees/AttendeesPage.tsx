@@ -1,6 +1,17 @@
 import { useEffect, useState, useCallback } from "react";
-import { ArrowUpDown, Building2, Calendar, RotateCcw, TrendingUp, Users } from "lucide-react";
-import { getAttendees } from "@/lib/api";
+import {
+  ArrowUpDown,
+  Building2,
+  Calendar,
+  RotateCcw,
+  TrendingUp,
+  Users,
+  CheckCircle2,
+  Mail,
+  Loader2,
+} from "lucide-react";
+import { toast } from "sonner";
+import { getAttendees, resendAttendeeEmail } from "@/lib/api";
 import type { AttendeeItem, AttendeeStats } from "@/shared/types";
 import type { AttendeesQueryInput } from "@/shared/schemas";
 import { StatCard } from "../components/StatCard";
@@ -27,6 +38,17 @@ const DATE_FILTER_OPTIONS = [
   { value: "30d", label: "Last 30 days" },
 ] as const;
 
+const CHECK_IN_STATUS_OPTIONS = [
+  { value: "all", label: "Check-in: All" },
+  { value: "checked_in", label: "Checked In" },
+  { value: "not_checked_in", label: "Not Checked In" },
+] as const;
+
+const CHECK_IN_DAY_OPTIONS = [
+  { value: "1", label: "Day 1 (Nov 28)" },
+  { value: "2", label: "Day 2 (Nov 29)" },
+] as const;
+
 export function AttendeesPage() {
   const [attendees, setAttendees] = useState<AttendeeItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -37,6 +59,7 @@ export function AttendeesPage() {
     investor: 0,
     government: 0,
     internationalPartner: 0,
+    checkedInToday: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -45,8 +68,13 @@ export function AttendeesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
+  const [checkInStatusFilter, setCheckInStatusFilter] = useState<string>("all");
+  const [checkInDayFilter, setCheckInDayFilter] = useState<string>("1");
   const [sortAscending, setSortAscending] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Resend email action loading state
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   const fetchAttendeesData = useCallback(async () => {
     setLoading(true);
@@ -58,6 +86,8 @@ export function AttendeesPage() {
         attendeeType: typeFilter as AttendeesQueryInput["attendeeType"],
         range: dateFilter as AttendeesQueryInput["range"],
         sort: sortAscending ? "oldest" : "newest",
+        checkInStatus: checkInStatusFilter as AttendeesQueryInput["checkInStatus"],
+        checkInDay: parseInt(checkInDayFilter, 10) as 1 | 2,
         page: currentPage,
         pageSize: PAGE_SIZE,
       };
@@ -71,7 +101,7 @@ export function AttendeesPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, typeFilter, dateFilter, sortAscending, currentPage]);
+  }, [searchQuery, typeFilter, dateFilter, sortAscending, checkInStatusFilter, checkInDayFilter, currentPage]);
 
   useEffect(() => {
     fetchAttendeesData();
@@ -93,13 +123,41 @@ export function AttendeesPage() {
     setCurrentPage(1);
   };
 
-  const hasActiveFilters = searchQuery !== "" || typeFilter !== "all" || dateFilter !== "all";
+  const handleCheckInStatusChange = (status: string) => {
+    setCheckInStatusFilter(status);
+    setCurrentPage(1);
+  };
+
+  const handleCheckInDayChange = (day: string) => {
+    setCheckInDayFilter(day);
+    setCurrentPage(1);
+  };
+
+  const hasActiveFilters =
+    searchQuery !== "" ||
+    typeFilter !== "all" ||
+    dateFilter !== "all" ||
+    checkInStatusFilter !== "all";
 
   const clearFilters = () => {
     setSearchQuery("");
     setTypeFilter("all");
     setDateFilter("all");
+    setCheckInStatusFilter("all");
+    setCheckInDayFilter("1");
     setCurrentPage(1);
+  };
+
+  const handleResendEmail = async (attendee: AttendeeItem) => {
+    setResendingId(attendee.id);
+    try {
+      await resendAttendeeEmail(attendee.id);
+      toast.success(`Confirmation email resent to ${attendee.email}`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to resend confirmation email");
+    } finally {
+      setResendingId(null);
+    }
   };
 
   const formatDate = (isoString: string) => {
@@ -136,7 +194,10 @@ export function AttendeesPage() {
       cell: (item) => (
         <div>
           <p className="font-medium text-cream">{item.fullName}</p>
-          <p className="text-[10px] text-mute font-mono">{item.reference}</p>
+          <p className="text-[10px] text-mute font-mono">
+            {item.reference}
+            {item.ticketCode ? ` • ${item.ticketCode}` : ""}
+          </p>
         </div>
       ),
     },
@@ -164,6 +225,33 @@ export function AttendeesPage() {
       cell: (item) => <StatusBadge attendeeType={formatAttendeeType(item.attendeeType)} />,
     },
     {
+      header: "Check-in",
+      cell: (item) => (
+        <div className="flex items-center gap-1.5">
+          <span
+            title={item.day1CheckedIn ? "Checked in on Day 1" : "Not checked in on Day 1"}
+            className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${
+              item.day1CheckedIn
+                ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                : "border-line bg-ink-2/30 text-mute/40"
+            }`}
+          >
+            D1
+          </span>
+          <span
+            title={item.day2CheckedIn ? "Checked in on Day 2" : "Not checked in on Day 2"}
+            className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${
+              item.day2CheckedIn
+                ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                : "border-line bg-ink-2/30 text-mute/40"
+            }`}
+          >
+            D2
+          </span>
+        </div>
+      ),
+    },
+    {
       header: (
         <button
           type="button"
@@ -177,16 +265,35 @@ export function AttendeesPage() {
       ),
       cell: (item) => <span className="text-mute">{formatDate(item.createdAt)}</span>,
     },
+    {
+      header: "Actions",
+      cell: (item) => (
+        <button
+          type="button"
+          disabled={resendingId === item.id}
+          onClick={() => handleResendEmail(item)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border border-line bg-ink-2 text-mute hover:text-cream hover:border-gold transition-colors disabled:opacity-50 cursor-pointer"
+          title="Resend confirmation email with QR code"
+        >
+          {resendingId === item.id ? (
+            <Loader2 size={12} className="animate-spin text-gold" />
+          ) : (
+            <Mail size={12} className="text-gold" />
+          )}
+          <span>Resend Email</span>
+        </button>
+      ),
+    },
   ];
 
   return (
     <div className="space-y-6">
-      {/* 4 Stat Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* 5 Stat Cards */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard
           label="Total Registrants"
           value={stats.total}
-          subtitle="All confirmed forum entries"
+          subtitle="All confirmed entries"
           icon={<Users size={20} strokeWidth={1.5} />}
         />
         <StatCard
@@ -194,6 +301,12 @@ export function AttendeesPage() {
           value={stats.today}
           subtitle="Signed up today"
           icon={<Calendar size={20} strokeWidth={1.5} />}
+        />
+        <StatCard
+          label="Checked In Today"
+          value={stats.checkedInToday ?? 0}
+          subtitle="Scanned & desk verified"
+          icon={<CheckCircle2 size={20} strokeWidth={1.5} className="text-emerald-400" />}
         />
         <StatCard
           label="Company Attendees"
@@ -211,12 +324,12 @@ export function AttendeesPage() {
 
       {/* Toolbar */}
       <div className="border border-line bg-ink p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
             <SearchInput
               value={searchQuery}
               onChange={handleSearchChange}
-              placeholder="Search name, email, phone, organization..."
+              placeholder="Search name, email, phone, organization, ticket..."
               className="w-full sm:max-w-xs"
             />
             <div className="flex flex-wrap items-center gap-2">
@@ -232,6 +345,20 @@ export function AttendeesPage() {
                 options={DATE_FILTER_OPTIONS}
                 onChange={handleDateChange}
               />
+              <FilterSelect
+                id="attendee-checkin-status-filter"
+                value={checkInStatusFilter}
+                options={CHECK_IN_STATUS_OPTIONS}
+                onChange={handleCheckInStatusChange}
+              />
+              {checkInStatusFilter !== "all" && (
+                <FilterSelect
+                  id="attendee-checkin-day-filter"
+                  value={checkInDayFilter}
+                  options={CHECK_IN_DAY_OPTIONS}
+                  onChange={handleCheckInDayChange}
+                />
+              )}
             </div>
           </div>
 

@@ -139,9 +139,80 @@ async function main() {
   await client.connect();
 
   try {
-    console.log("Applying schema migrations...");
-    await client.query(MIGRATION_SQL);
-    console.log("✓ All tables, constraints, and indexes successfully created.");
+    // Ensure migrations tracking table exists
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public."_migrations" (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        applied_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+      );
+    `);
+
+    const appliedRes = await client.query(`SELECT id FROM public."_migrations";`);
+    const appliedIds = new Set(appliedRes.rows.map((r) => r.id));
+
+    const targetArg = process.argv[2];
+    if (targetArg) {
+      let migrationPath = path.resolve(process.cwd(), targetArg);
+      if (!fs.existsSync(migrationPath)) {
+        // Check in migrations directory
+        const candidate = path.resolve(
+          process.cwd(),
+          "migrations",
+          targetArg.endsWith(".sql") ? targetArg : `${targetArg}.sql`,
+        );
+        if (fs.existsSync(candidate)) {
+          migrationPath = candidate;
+        } else {
+          // Check for prefix match like 0001
+          const migrationsDir = path.resolve(process.cwd(), "migrations");
+          const files = fs.readdirSync(migrationsDir);
+          const matched = files.find((f) => f.startsWith(targetArg));
+          if (matched) {
+            migrationPath = path.join(migrationsDir, matched);
+          } else {
+            throw new Error(`Migration file not found: ${targetArg}`);
+          }
+        }
+      }
+
+      const fileName = path.basename(migrationPath);
+      console.log(`Applying migration file: ${fileName}...`);
+      const sqlContent = fs.readFileSync(migrationPath, "utf-8");
+      await client.query(sqlContent);
+      await client.query(
+        `INSERT INTO public."_migrations" (id, name, applied_at) VALUES ($1, $2, now()) ON CONFLICT (id) DO NOTHING;`,
+        [fileName, fileName],
+      );
+      console.log(`✓ Migration ${fileName} applied successfully.`);
+    } else {
+      console.log("Applying base schema...");
+      await client.query(MIGRATION_SQL);
+      await client.query(
+        `INSERT INTO public."_migrations" (id, name, applied_at) VALUES ('0000_initial_schema', '0000_initial_schema', now()) ON CONFLICT (id) DO NOTHING;`,
+      );
+      console.log("✓ Base schema verified.");
+
+      // Check migration 1
+      const mig1 = "0001_attendee_checkin_init.sql";
+      const mig1Path = path.resolve(process.cwd(), "migrations", mig1);
+      if (fs.existsSync(mig1Path) && !appliedIds.has(mig1)) {
+        console.log(`Applying pending migration: ${mig1}...`);
+        const sql1 = fs.readFileSync(mig1Path, "utf-8");
+        await client.query(sql1);
+        await client.query(
+          `INSERT INTO public."_migrations" (id, name, applied_at) VALUES ($1, $2, now()) ON CONFLICT (id) DO NOTHING;`,
+          [mig1, mig1],
+        );
+        console.log(`✓ Migration ${mig1} applied successfully.`);
+      } else {
+        console.log(`Migration ${mig1} is already recorded as applied.`);
+      }
+
+      console.log(
+        "Note: 0002_ticket_code_not_null_unique.sql is deferred (apply manually after backfill and deployment via: pnpm db:migrate 0002)",
+      );
+    }
 
     const res = await client.query(`
       SELECT table_name 
@@ -150,6 +221,9 @@ async function main() {
       ORDER BY table_name;
     `);
     console.log("Verified tables in database:", res.rows.map((r) => r.table_name));
+
+    const migRecords = await client.query(`SELECT id, applied_at FROM public."_migrations" ORDER BY applied_at ASC;`);
+    console.log("Applied migrations in _migrations:", migRecords.rows);
   } finally {
     await client.end();
   }

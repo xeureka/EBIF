@@ -9,12 +9,14 @@ import {
 import {
   Building2,
   CheckCircle2,
+  Download,
   Globe2,
   Landmark,
   TrendingUp,
   X,
   type LucideIcon,
 } from "lucide-react";
+import QRCode from "qrcode";
 import { event } from "@/data/event";
 import {
   submitRegistration,
@@ -175,6 +177,8 @@ export function RegistrationModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [ticketCode, setTicketCode] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState("");
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const completed = REQUIRED_FIELDS.filter((field) => !validateField(field, form)).length;
@@ -188,6 +192,8 @@ export function RegistrationModal({
     setSubmitting(false);
     setSubmitError("");
     setSuccess(false);
+    setTicketCode("");
+    setQrDataUrl("");
   }, [open]);
 
   useEffect(() => {
@@ -337,7 +343,27 @@ export function RegistrationModal({
         note: "",
         consent: form.consent,
       };
-      await submitRegistration(payload);
+      const res = await submitRegistration(payload);
+      const code = res?.ticketCode || "";
+      setTicketCode(code);
+
+      if (code) {
+        try {
+          const dataUrl = await QRCode.toDataURL(code, {
+            errorCorrectionLevel: "M",
+            margin: 2,
+            width: 280,
+            color: {
+              dark: "#0b1329",
+              light: "#ffffff",
+            },
+          });
+          setQrDataUrl(dataUrl);
+        } catch (qrErr) {
+          console.error("QR generation error:", qrErr);
+        }
+      }
+
       setSuccess(true);
     } catch (err) {
       setSubmitError(
@@ -348,6 +374,16 @@ export function RegistrationModal({
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handleDownloadQr() {
+    if (!qrDataUrl) return;
+    const a = document.createElement("a");
+    a.href = qrDataUrl;
+    a.download = `EBIF-Ticket-${ticketCode || "QR"}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   if (!open) return null;
@@ -376,19 +412,61 @@ export function RegistrationModal({
 
         <div className="min-h-0 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
           {success ? (
-            <div className="flex min-h-[320px] flex-col items-center justify-center px-4 py-10 text-center">
-              <CheckCircle2 size={40} strokeWidth={1.5} className="text-gold" />
-              <h2 id="registration-title" className="mt-4 font-display text-4xl">
+            <div className="flex flex-col items-center justify-center px-4 py-8 text-center animate-in fade-in duration-200">
+              <CheckCircle2 size={44} strokeWidth={1.5} className="text-gold" />
+              <h2 id="registration-title" className="mt-3 font-display text-3xl sm:text-4xl text-cream">
                 You're registered
               </h2>
-              <p className="mt-3 max-w-md text-sm text-mute">
-                A confirmation will be sent to {form.email}.
+              <p className="mt-2 text-sm text-mute max-w-md">
+                A confirmation email with your QR code has been sent to{" "}
+                <span className="text-cream font-semibold">{form.email}</span>
               </p>
+
+              {/* QR Code Canvas/Image */}
+              {qrDataUrl && (
+                <div className="mt-6 flex flex-col items-center">
+                  <div className="border-2 border-gold/40 bg-white p-3 rounded-none shadow-lg">
+                    <img
+                      src={qrDataUrl}
+                      alt={`Ticket QR Code for ${ticketCode}`}
+                      className="w-48 h-48 block"
+                    />
+                  </div>
+
+                  {ticketCode && (
+                    <p className="mt-3 font-mono text-sm font-bold tracking-widest text-gold bg-ink-2 px-3 py-1 border border-line">
+                      {ticketCode}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadQr}
+                    className="mt-3 inline-flex items-center gap-2 border border-gold/40 bg-gold/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-gold hover:bg-gold/25 transition-colors cursor-pointer"
+                  >
+                    <Download size={14} />
+                    <span>Download QR</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Event Dates & Venue */}
+              <div className="mt-6 w-full max-w-md border border-line bg-ink-2/60 p-4 text-left text-xs space-y-1.5">
+                <p>
+                  <strong className="text-cream uppercase tracking-wider text-[11px]">Dates:</strong>{" "}
+                  <span className="text-mute">{event.dates}</span>
+                </p>
+                <p>
+                  <strong className="text-cream uppercase tracking-wider text-[11px]">Venue:</strong>{" "}
+                  <span className="text-mute">{event.venueWithCity}</span>
+                </p>
+              </div>
+
               <button
                 type="button"
                 data-success-close
                 onClick={onClose}
-                className="mt-6 inline-flex h-11 items-center border border-gold bg-gold px-6 text-[12px] uppercase tracking-[0.18em] text-ink transition-colors hover:bg-gold-2"
+                className="mt-6 inline-flex h-11 items-center border border-gold bg-gold px-8 text-[12px] font-bold uppercase tracking-[0.18em] text-ink transition-colors hover:bg-gold-2 cursor-pointer"
               >
                 Close
               </button>

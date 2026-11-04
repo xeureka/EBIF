@@ -6,6 +6,9 @@ import {
   integer,
   bigint,
   jsonb,
+  smallint,
+  uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -88,7 +91,55 @@ export const registrations = pgTable("registrations", {
   attendingDays: text("attending_days").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   reference: text("reference").notNull().unique(),
+  ticketCode: text("ticket_code"),
 });
+
+export const checkIns = pgTable(
+  "check_ins",
+  {
+    id: text("id").primaryKey(),
+    registrationId: text("registration_id")
+      .notNull()
+      .references(() => registrations.id, { onDelete: "cascade" }),
+    eventDay: smallint("event_day").notNull(),
+    checkedInAt: timestamp("checked_in_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    checkedInBy: text("checked_in_by")
+      .notNull()
+      .references(() => user.id),
+    method: text("method").$type<"qr" | "manual" | "walk_in">().notNull(),
+  },
+  (table) => [
+    uniqueIndex("check_ins_registration_day_unique").on(
+      table.registrationId,
+      table.eventDay,
+    ),
+    index("check_ins_event_day_idx").on(table.eventDay),
+    index("check_ins_checked_in_at_idx").on(table.checkedInAt),
+  ],
+);
+
+export const emailLog = pgTable(
+  "email_log",
+  {
+    id: text("id").primaryKey(),
+    registrationId: text("registration_id")
+      .notNull()
+      .references(() => registrations.id, { onDelete: "cascade" }),
+    type: text("type").$type<"confirmation">().notNull(),
+    status: text("status").$type<"sent" | "failed">().notNull(),
+    providerId: text("provider_id"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("email_log_registration_id_idx").on(table.registrationId),
+    index("email_log_created_at_idx").on(table.createdAt),
+  ],
+);
 
 export const auditLogs = pgTable("audit_logs", {
   id: text("id").primaryKey(),
@@ -110,6 +161,8 @@ export const dbSchema = {
   rateLimit,
   loginAttempts,
   registrations,
+  checkIns,
+  emailLog,
   auditLogs,
 };
 

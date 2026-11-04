@@ -2,7 +2,11 @@ import { Hono } from "hono";
 import { sql, eq } from "drizzle-orm";
 import { registrationSchema } from "../../shared/schemas";
 import { registrations, rateLimit } from "../db/schema";
-import type { AppDb } from "../db/client";
+import { createDbContext, closeDbContext, type AppDb, type DbContext } from "../db/client";
+import { generateUniqueTicketCode } from "../modules/tickets/code";
+import { getServerEnv } from "../env";
+import { ResendEmailProvider } from "../modules/email/resend";
+import { sendConfirmationEmail } from "../modules/email/service";
 
 export const registrationsRouter = new Hono<{
   Variables: {
@@ -108,48 +112,121 @@ registrationsRouter.post("/", async (c) => {
     return c.json({ ok: true });
   }
 
-  // Check duplicate email using lower(email)
-  const [existingUser] = await db
-    .select({ id: registrations.id })
-    .from(registrations)
-    .where(sql`lower(${registrations.email}) = ${email.toLowerCase()}`)
-    .limit(1);
+  try {
+    // Check duplicate email using lower(email)
+    const [existingUser] = await db
+      .select({ id: registrations.id })
+      .from(registrations)
+      .where(sql`lower(${registrations.email}) = ${email.toLowerCase()}`)
+      .limit(1);
 
-  if (existingUser) {
+    if (existingUser) {
+      return c.json(
+        {
+          error: {
+            code: "DUPLICATE_EMAIL",
+            message: "This email is already registered for the forum.",
+          },
+        },
+        409,
+      );
+    }
+
+    // Format phone number to standard +251XXXXXXXXX
+    const cleanDigits = phone.replace(/\D/g, "");
+    const formattedPhone = `+251${cleanDigits}`;
+
+    // Unique reference code
+    const referenceHex = crypto.randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
+    const reference = `EBIF-${referenceHex}`;
+
+    const mappedType = ATTENDEE_TYPE_MAP[attendeeType] || "Company";
+
+    // Generate unique Crockford Base32 ticket code before insert
+    const ticketCode = await generateUniqueTicketCode(db);
+
+    const regId = crypto.randomUUID();
+
+    // Parameterized insert
+    await db.insert(registrations).values({
+      id: regId,
+      fullName,
+      email,
+      phone: formattedPhone,
+      organization,
+      jobTitle,
+      attendeeType: mappedType,
+      attendingDays: "Nov 28, Nov 29, 2026",
+      reference,
+      ticketCode,
+      createdAt: new Date(),
+    });
+
+    // Non-blocking confirmation email dispatch
+    const serverEnv = getServerEnv(c.env as Record<string, string | undefined>);
+    const emailProvider = new ResendEmailProvider({
+      apiKey: serverEnv.RESEND_API_KEY,
+      from: serverEnv.EMAIL_FROM,
+      replyTo: serverEnv.EMAIL_REPLY_TO,
+    });
+
+    const dbUrl = (c.env as Record<string, string | undefined>)?.DATABASE_URL || process.env.DATABASE_URL;
+    const emailPromise = (async () => {
+      let emailDb = db;
+      let emailCtx: DbContext | null = null;
+      if (dbUrl) {
+        try {
+          emailCtx = await createDbContext(dbUrl);
+          emailDb = emailCtx.db;
+        } catch (dbErr) {
+          console.warn("Could not create independent db context for async email:", dbErr);
+        }
+      }
+      try {
+        await sendConfirmationEmail({
+          db: emailDb,
+          attendee: {
+            id: regId,
+            fullName,
+            email,
+            organization,
+            ticketCode,
+          },
+          provider: emailProvider,
+          siteUrl: serverEnv.SITE_URL,
+        });
+      } finally {
+        if (emailCtx) {
+          await closeDbContext(emailCtx);
+        }
+      }
+    })();
+
+    let hasWaitUntil = false;
+    try {
+      if (c.executionCtx && typeof c.executionCtx.waitUntil === "function") {
+        c.executionCtx.waitUntil(emailPromise);
+        hasWaitUntil = true;
+      }
+    } catch {
+      // In dev / Node environments, c.executionCtx getter throws because there is no Worker context
+    }
+
+    if (!hasWaitUntil) {
+      emailPromise.catch((err) => console.error("Async email dispatch error:", err));
+    }
+
+    return c.json({ ok: true, ticketCode });
+  } catch (err) {
+    console.error("Registration processing error:", err);
     return c.json(
       {
         error: {
-          code: "DUPLICATE_EMAIL",
-          message: "This email is already registered for the forum.",
+          code: "INTERNAL",
+          message: "Something went wrong. Please try again.",
         },
       },
-      409,
+      500,
     );
   }
-
-  // Format phone number to standard +251XXXXXXXXX
-  const cleanDigits = phone.replace(/\D/g, "");
-  const formattedPhone = `+251${cleanDigits}`;
-
-  // Unique reference code
-  const referenceHex = crypto.randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
-  const reference = `EBIF-${referenceHex}`;
-
-  const mappedType = ATTENDEE_TYPE_MAP[attendeeType] || "Company";
-
-  // Parameterized insert
-  await db.insert(registrations).values({
-    id: crypto.randomUUID(),
-    fullName,
-    email,
-    phone: formattedPhone,
-    organization,
-    jobTitle,
-    attendeeType: mappedType,
-    attendingDays: "Nov 28, Nov 29, 2026",
-    reference,
-    createdAt: new Date(),
-  });
-
-  return c.json({ ok: true });
 });
