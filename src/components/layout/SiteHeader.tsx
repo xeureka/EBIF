@@ -21,14 +21,28 @@ export function SiteHeader({ homePrefix = "" }: { homePrefix?: string }) {
   return (
     <header className="w-full sticky top-0 z-40 border-b border-line bg-ink/90 backdrop-blur-md">
       <div className="w-full flex h-16 items-center justify-between px-5">
-        <a href={`${homePrefix}#top`} className="flex min-w-0 items-center gap-2.5">
+        <a
+          href={homePrefix || "/"}
+          aria-label="Ethiopian Business and Investment Forum"
+          className="flex min-w-0 flex-1 items-center gap-2.5"
+        >
           <img
             src="/images/LOGO.png"
             alt=""
             aria-hidden="true"
             className="h-9 w-9 shrink-0 rounded-full border border-line bg-white object-cover"
           />
-          <span className="whitespace-nowrap font-display text-[clamp(0.72rem,3.5vw,1.25rem)] tracking-[0.04em]">
+          {/* Small screens: EBIF + subtitle (subtitle dropped below 360px) */}
+          <div className="flex min-w-0 flex-col items-start xl:hidden" aria-hidden="true">
+            <span className="whitespace-nowrap font-display text-lg leading-none uppercase tracking-[0.04em]">
+              EBIF
+            </span>
+            <span className="hidden min-[360px]:block max-w-full truncate whitespace-nowrap text-[10px] sm:text-[11px] leading-tight tracking-[0.14em] text-mute mt-0.5">
+              Business & Investment Forum
+            </span>
+          </div>
+          {/* Large screens: current full name, unchanged */}
+          <span className="hidden xl:inline whitespace-nowrap font-display text-[clamp(0.72rem,3.5vw,1.25rem)] tracking-[0.04em]">
             ETHIOPIAN BUSINESS AND INVESTMENT FORUM
           </span>
         </a>
@@ -54,7 +68,7 @@ export function SiteHeader({ homePrefix = "" }: { homePrefix?: string }) {
         <button
           ref={menuButtonRef}
           type="button"
-          className="grid h-11 w-11 place-items-center border border-line md:hidden"
+          className="grid h-11 w-11 shrink-0 place-items-center border border-line md:hidden"
           aria-label={open ? "Close menu" : "Open menu"}
           onClick={() => setOpen((v) => !v)}
         >
