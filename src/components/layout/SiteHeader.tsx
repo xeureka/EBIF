@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
+import { useRegistrationModal } from "@/components/registration/RegistrationModalProvider";
 
 type NavItem = { href: string; label: string; newTab?: boolean };
 
@@ -12,14 +13,10 @@ const NAV: NavItem[] = [
   { href: "/evisa", label: "eVisa", newTab: true },
 ];
 
-export function SiteHeader({
-  homePrefix = "",
-  registerHref = "#register",
-}: {
-  homePrefix?: string;
-  registerHref?: string;
-}) {
+export function SiteHeader({ homePrefix = "" }: { homePrefix?: string }) {
   const [open, setOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const { openRegistration } = useRegistrationModal();
 
   return (
     <header className="w-full sticky top-0 z-40 border-b border-line bg-ink/90 backdrop-blur-md">
@@ -46,14 +43,16 @@ export function SiteHeader({
               {item.label}
             </a>
           ))}
-          <a
-            href={registerHref}
+          <button
+            type="button"
+            onClick={() => openRegistration()}
             className="border border-gold bg-gold px-4 py-2 text-[12px] uppercase tracking-[0.18em] text-ink transition-colors hover:bg-gold-2"
           >
             Register
-          </a>
+          </button>
         </nav>
         <button
+          ref={menuButtonRef}
           type="button"
           className="grid h-11 w-11 place-items-center border border-line md:hidden"
           aria-label={open ? "Close menu" : "Open menu"}
@@ -75,6 +74,16 @@ export function SiteHeader({
               {item.label}
             </a>
           ))}
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              openRegistration(menuButtonRef.current ?? undefined);
+            }}
+            className="mt-2 w-full border border-gold bg-gold px-4 py-3 text-[12px] uppercase tracking-[0.18em] text-ink transition-colors hover:bg-gold-2"
+          >
+            Register
+          </button>
         </div>
       )}
     </header>

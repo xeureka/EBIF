@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -11,17 +12,14 @@ import {
   ShieldCheck,
   Wallet,
 } from "lucide-react";
-import type { ReactNode } from "react";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { useRegistrationModal } from "@/components/registration/RegistrationModalProvider";
 import { BackToTop } from "@/components/ui/BackToTop";
+import { ContactInfo } from "@/components/ui/ContactInfo";
+import { event } from "@/data/event";
 
 const E_VISA_URL = "https://www.evisa.gov.et/";
-
-const event = {
-  name: "Ethiopian Business & Investment Forum",
-  dates: "28–29 November 2026",
-};
 
 const facts = [
   { icon: Globe2, label: "Application type", value: "Ethiopian eVisa" },
@@ -256,6 +254,8 @@ function RegisterCTA({
   description: string;
   className?: string;
 }) {
+  const { openRegistration } = useRegistrationModal();
+
   return (
     <section className={`mx-auto max-w-[1200px] px-6 md:px-10 py-16 md:py-20 ${className}`}>
       <div className="border border-line p-6 md:p-8 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -263,13 +263,14 @@ function RegisterCTA({
           <h2 className="font-display text-[32px] md:text-[40px] leading-[1.1] tracking-tight">{title}</h2>
           <p className="text-mute max-w-[65ch] mt-3">{description}</p>
         </div>
-        <a
-          href="/#register"
-          className="inline-flex shrink-0 items-center justify-center gap-2 px-6 py-3 text-sm font-medium border border-gold bg-gold text-ink transition-colors duration-150 hover:bg-gold-2"
+        <button
+          type="button"
+          onClick={() => openRegistration()}
+          className="inline-flex shrink-0 items-center justify-center gap-2 px-6 py-3 text-sm font-medium border border-gold bg-gold text-ink transition-colors duration-150 hover:bg-gold-2 cursor-pointer"
         >
           Register
           <ArrowRight className="h-4 w-4" />
-        </a>
+        </button>
       </div>
     </section>
   );
@@ -278,7 +279,7 @@ function RegisterCTA({
 export function VisaPage() {
   return (
     <div>
-      <SiteHeader homePrefix="/" registerHref="/#register" />
+      <SiteHeader homePrefix="/" />
       <main>
         <section className="border-b border-line">
           <div className="mx-auto max-w-[1200px] px-6 md:px-10 py-16 md:py-24">
@@ -288,9 +289,9 @@ export function VisaPage() {
                 Your guide to entering Ethiopia
               </h1>
               <p className="text-mute max-w-[65ch] mt-5">
-                Everything you need to know about obtaining a visa for the {event.name} on{" "}
-                {event.dates}. Please review the requirements below and apply through the official
-                Government of Ethiopia portal before you travel.
+                Everything you need to know about obtaining a visa for the {event.name} at{" "}
+                {event.venue}, {event.city}, on {event.dates}. Please review the requirements below
+                and apply through the official Government of Ethiopia portal before you travel.
               </p>
               <div className="flex flex-wrap items-center gap-3 mt-8">
                 <a
@@ -564,9 +565,15 @@ export function VisaPage() {
 
         <RegisterCTA
           title="Attending the Forum?"
-          description={`Register for the ${event.name} before arranging your travel so you have your invitation letter ready for the visa application.`}
+          description={`Register for the ${event.name} at ${event.venue}, ${event.city}, on ${event.dates} before arranging your travel so you have your invitation letter ready for the visa application.`}
           className="border-t border-line"
         />
+
+        <section className="mx-auto max-w-[1200px] px-6 md:px-10 pt-16 md:pt-24">
+          <Reveal>
+            <ContactInfo compact />
+          </Reveal>
+        </section>
 
         <section className="mx-auto max-w-[1200px] px-6 md:px-10 py-16 md:py-24">
           <Reveal className="border border-line p-8 md:p-12">

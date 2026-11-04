@@ -1,18 +1,23 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   Gem,
   Handshake,
   Landmark,
+  MapPin,
   Mic2,
   Radio,
   Users,
 } from "lucide-react";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { useRegistrationModal } from "@/components/registration/RegistrationModalProvider";
 import { BackToTop } from "@/components/ui/BackToTop";
+import { ContactInfo } from "@/components/ui/ContactInfo";
 import { PhotoSlideshow } from "@/components/ui/PhotoSlideshow";
+import { event } from "@/data/event";
 import { sortedPhotos } from "@/lib/photos";
+import venueImage from "../../assets/gala/programme/hall.jpg";
 
 const PILLARS = [
   {
@@ -93,11 +98,19 @@ const ATTENDEES = [
   "Media",
 ];
 
-const JOIN = [
+type JoinItem = {
+  title: string;
+  copy: string;
+  label: string;
+  href?: string;
+  action?: "register";
+};
+
+const JOIN: JoinItem[] = [
   {
     title: "Register to attend",
     copy: "Investors, founders and institutional guests. Registration is not a confirmed seat.",
-    href: "#register",
+    action: "register",
     label: "Register",
   },
   {
@@ -231,19 +244,6 @@ const ORGANISERS = [
 
 const SLIDE_MS = 3500;
 
-const ROLES = ["Investor", "Founder", "Institution", "Sponsor", "Media", "Speaker"];
-
-type Interest = {
-  name: string;
-  organisation: string;
-  email: string;
-  role: string;
-  note: string;
-};
-
-const EMPTY: Interest = { name: "", organisation: "", email: "", role: "Investor", note: "" };
-  const LEGACY_INTEREST_KEY = "nexa-forum-interest";
-
 function OrganiserCard({
   name,
   copy,
@@ -369,40 +369,13 @@ function Countdown({ className = "" }: { className?: string }) {
 
 export function GalaSite() {
   const eventTargetCounts = useEventTargetCounts();
-  const [form, setForm] = useState<Interest>(EMPTY);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    try {
-      localStorage.removeItem(LEGACY_INTEREST_KEY);
-    } catch {
-      // Storage may be unavailable in restricted browser contexts.
-    }
-  }, []);
+  const { openRegistration } = useRegistrationModal();
 
   useEffect(() => {
     const id = window.location.hash.slice(1);
     if (!id) return;
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   }, []);
-
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!form.name.trim() || !form.email.includes("@") || !form.organisation.trim()) {
-      setError("Name, organisation and a valid email are required.");
-      setSaved(false);
-      return;
-    }
-    setError("");
-    setSaved(true);
-  }
-
-  function updateRegistration(changes: Partial<Interest>) {
-    setForm((current) => ({ ...current, ...changes }));
-    setSaved(false);
-    setError("");
-  }
 
   return (
     <div className="w-full min-h-screen bg-paper text-cream">
@@ -422,13 +395,17 @@ export function GalaSite() {
           <div className="absolute inset-0 bg-shade/55" />
           <div className="relative w-full flex min-h-[88vh] flex-col justify-end px-5 pb-16 pt-28">
             <p className="text-[12px] uppercase tracking-[0.32em] text-ink">
-               Addis Ababa · Two days + closing dinner · 2026
+               Two days + closing dinner · {event.year}
             </p>
             <div className="mt-5 inline-flex w-fit self-start items-center gap-3 border border-ink/60 bg-ink/15 px-4 py-2 text-[11px] font-medium uppercase tracking-[0.24em] text-ink backdrop-blur-sm">
-              <span className="text-ink">NOVEMBER 28 - 29</span>
+              <span className="text-ink">{event.dateLabel}</span>
               <span className="h-3 w-px bg-ink/60" aria-hidden="true" />
-              <span>2026</span>
+              <span>{event.year}</span>
             </div>
+            <p className="mt-3 flex items-center gap-2 text-[12px] uppercase tracking-[0.24em] text-ink">
+              <MapPin size={14} className="shrink-0" />
+              {event.venue}, {event.city}
+            </p>
             <h1 className="mt-4 font-display text-5xl leading-[0.95] font-medium text-ink sm:text-7xl">
                Ethiopian Business
                <span className="block italic">& Investment Forum</span>
@@ -438,9 +415,17 @@ export function GalaSite() {
                international partners for meaningful connections, opportunity discovery and commercial collaboration.
              </p>
             <div className="mt-8 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => openRegistration()}
+                className="inline-flex h-12 items-center gap-2 border border-gold bg-gold px-5 text-[12px] font-medium uppercase tracking-[0.18em] text-ink transition-colors hover:bg-gold-2 cursor-pointer"
+              >
+                Register
+                <ArrowRight size={14} />
+              </button>
               <a
                 href="#join"
-                className="inline-flex h-12 items-center border border-ink px-5 text-[12px] uppercase tracking-[0.18em] text-ink"
+                className="inline-flex h-12 items-center border border-ink px-5 text-[12px] uppercase tracking-[0.18em] text-ink transition-colors hover:bg-ink/10"
               >
                 Book a presence
               </a>
@@ -495,16 +480,30 @@ export function GalaSite() {
               <article key={item.title} className="flex flex-col bg-ink p-6">
                 <h3 className="font-display text-3xl">{item.title}</h3>
                 <p className="mt-3 flex-1 text-sm text-mute">{item.copy}</p>
-                <a
-                  href={item.href}
-                  className="group mt-6 inline-flex h-11 items-center gap-2 text-[12px] uppercase tracking-[0.16em] text-gold transition-colors duration-300 hover:text-gold-2"
-                >
-                  <span className="transition-transform duration-300 ease-out group-hover:translate-x-0.5">{item.label}</span>
-                  <ArrowRight
-                    size={14}
-                    className="transition-transform duration-300 ease-out group-hover:translate-x-1.5"
-                  />
-                </a>
+                {item.action === "register" ? (
+                  <button
+                    type="button"
+                    onClick={() => openRegistration()}
+                    className="group mt-6 inline-flex h-11 items-center gap-2 text-[12px] uppercase tracking-[0.16em] text-gold transition-colors duration-300 hover:text-gold-2 cursor-pointer"
+                  >
+                    <span className="transition-transform duration-300 ease-out group-hover:translate-x-0.5">{item.label}</span>
+                    <ArrowRight
+                      size={14}
+                      className="transition-transform duration-300 ease-out group-hover:translate-x-1.5"
+                    />
+                  </button>
+                ) : (
+                  <a
+                    href={item.href}
+                    className="group mt-6 inline-flex h-11 items-center gap-2 text-[12px] uppercase tracking-[0.16em] text-gold transition-colors duration-300 hover:text-gold-2"
+                  >
+                    <span className="transition-transform duration-300 ease-out group-hover:translate-x-0.5">{item.label}</span>
+                    <ArrowRight
+                      size={14}
+                      className="transition-transform duration-300 ease-out group-hover:translate-x-1.5"
+                    />
+                  </a>
+                )}
               </article>
             ))}
           </div>
@@ -520,6 +519,19 @@ export function GalaSite() {
               <p className="mt-5 text-mute">
               The Ethiopian Business & Investment Forum 2026 is a two-day business and investment platform designed to strengthen connections between Ethiopian enterprises, international investors, government institutions and strategic partners. The programme combines executive dialogue with practical commercial engagement, creating space for companies to present capabilities, investors to explore opportunities and institutions to build productive relationships.
                </p>
+              <dl className="mt-8 divide-y divide-line border border-line bg-ink">
+                <div className="grid grid-cols-[6rem_1fr] gap-4 p-4 text-sm">
+                  <dt className="text-[11px] uppercase tracking-[0.18em] text-gold">Venue</dt>
+                  <dd>
+                    {event.venue}
+                    <span className="block text-mute">{event.city}</span>
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[6rem_1fr] gap-4 p-4 text-sm">
+                  <dt className="text-[11px] uppercase tracking-[0.18em] text-gold">Dates</dt>
+                  <dd>{event.dates}</dd>
+                </div>
+              </dl>
             </div>
             <div className="grid gap-px bg-line sm:grid-cols-2 lg:col-span-7">
               {PILLARS.map((item) => (
@@ -539,7 +551,11 @@ export function GalaSite() {
               <p className="text-[12px] uppercase tracking-[0.28em] text-gold">Programme</p>
               <h2 className="mt-3 font-display text-4xl sm:text-5xl">Two working days. One formal close.</h2>
               <p className="mt-4 text-mute">
-                The running order is still being locked with the venue. What will not change is the shape: work first, dinner last.
+                The running order is still being locked with {event.venue}. What will not change is the shape: work first, dinner last.
+              </p>
+              <p className="mt-3 flex items-center gap-2 text-sm text-mute">
+                <MapPin size={14} className="shrink-0 text-gold" />
+                {event.venue}, {event.city}
               </p>
               <PhotoSlideshow
                 images={PROGRAMME_SLIDES}
@@ -563,6 +579,40 @@ export function GalaSite() {
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section id="venue" className="border-t border-line">
+          <div className="w-full grid gap-10 px-5 py-20 lg:grid-cols-2 lg:items-center">
+            <div>
+              <p className="text-[12px] uppercase tracking-[0.28em] text-gold">Venue</p>
+              <h2 className="mt-3 font-display text-4xl sm:text-5xl">{event.venue}</h2>
+              <p className="mt-4 max-w-[55ch] text-mute">
+                A landmark in the heart of the capital, hosting two working days of dialogue, matchmaking and a formal closing dinner.
+              </p>
+              <div className="mt-6 space-y-1 text-sm">
+                <p className="flex items-center gap-2">
+                  <MapPin size={14} className="shrink-0 text-gold" />
+                  {event.city}
+                </p>
+                <p className="text-mute">{event.dates}</p>
+              </div>
+              <a
+                href={event.mapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-6 inline-flex h-11 items-center gap-2 border border-gold px-5 text-[12px] uppercase tracking-[0.18em] text-gold transition-colors hover:bg-gold hover:text-ink"
+              >
+                Get directions
+                <ArrowRight size={14} />
+              </a>
+            </div>
+            <img
+              src={venueImage}
+              alt="Event hall at the venue"
+              loading="lazy"
+              className="aspect-[3/2] w-full border border-line object-cover"
+            />
           </div>
         </section>
 
@@ -671,70 +721,31 @@ export function GalaSite() {
             </div>
           </div>
         </section>
-  <section id="register" className="border-t border-line">
-          <div className="w-full grid gap-10 px-5 py-20 lg:grid-cols-2">
-            <div>
-              <p className="text-[12px] uppercase tracking-[0.28em] text-gold">Register</p>
-              <h2 className="mt-3 font-display text-4xl sm:text-5xl">Register your interest.</h2>
-              <p className="mt-4 text-mute">
-                Tell the desk who you are and how you would like to take part. Registration is reviewed before a confirmed seat is issued.
-              </p>
-            </div>
-            <form onSubmit={submit} autoComplete="off" className="space-y-4 border border-line bg-ink p-6">
-              <Field label="Name">
-                <input
-                  value={form.name}
-                  onChange={(e) => updateRegistration({ name: e.target.value })}
-                  className="field"
-                  autoComplete="off"
-                />
-              </Field>
-              <Field label="Organisation">
-                <input
-                  value={form.organisation}
-                  onChange={(e) => updateRegistration({ organisation: e.target.value })}
-                  className="field"
-                  autoComplete="off"
-                />
-              </Field>
-              <Field label="Email">
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => updateRegistration({ email: e.target.value })}
-                  className="field"
-                  autoComplete="off"
-                />
-              </Field>
-              <Field label="Role">
-                <select
-                  value={form.role}
-                  onChange={(e) => updateRegistration({ role: e.target.value })}
-                  className="field"
-                >
-                  {ROLES.map((role) => (
-                    <option key={role}>{role}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Note">
-                <textarea
-                  value={form.note}
-                  onChange={(e) => updateRegistration({ note: e.target.value })}
-                  rows={3}
-                  className="field resize-none"
-                />
-              </Field>
-              {error && <p className="text-sm text-rose">{error}</p>}
+        <section className="border-t border-line bg-ink">
+          <div className="w-full px-5 py-16 md:py-20">
+            <div className="border border-line bg-ink p-6 sm:p-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-[12px] uppercase tracking-[0.28em] text-gold">Registration</p>
+                <h2 className="mt-2 font-display text-3xl sm:text-4xl">Secure your place at the Forum</h2>
+                <p className="mt-3 max-w-[65ch] text-sm text-mute">
+                  Join company principals, institutional leaders and international investors at {event.venue}, {event.city}, on {event.dates}.
+                </p>
+              </div>
               <button
-                type="submit"
-                className={`h-12 w-full text-[12px] font-medium uppercase tracking-[0.18em] text-ink ${
-                  saved ? "bg-emerald-700" : "bg-gold"
-                }`}
+                type="button"
+                onClick={() => openRegistration()}
+                className="inline-flex shrink-0 items-center justify-center gap-2 border border-gold bg-gold px-6 py-3 text-[12px] font-medium uppercase tracking-[0.18em] text-ink transition-colors hover:bg-gold-2 cursor-pointer"
               >
-                {saved ? "Registration successful!" : "Submit registration"}
+                Register for the Forum
+                <ArrowRight size={14} />
               </button>
-            </form>
+            </div>
+          </div>
+        </section>
+
+        <section id="contact" className="border-t border-line bg-ink-2">
+          <div className="w-full px-5 py-20">
+            <ContactInfo />
           </div>
         </section>
       </main>
@@ -742,29 +753,6 @@ export function GalaSite() {
       <SiteFooter />
 
       <BackToTop />
-
-      <style>{`
-        .field {
-          width: 100%;
-          background: transparent;
-          border: 1px solid var(--color-line);
-          color: var(--color-cream);
-          padding: 0.75rem 0.85rem;
-          font-size: 0.95rem;
-          outline: none;
-        }
-        .field:focus { border-color: var(--color-gold); }
-        select.field { background: var(--color-ink-2); }
-      `}</style>
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-[11px] uppercase tracking-[0.18em] text-mute">{label}</span>
-      {children}
-    </label>
   );
 }

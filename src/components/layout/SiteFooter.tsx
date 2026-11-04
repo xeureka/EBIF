@@ -1,4 +1,8 @@
+import { ArrowUpRight } from "lucide-react";
 import { PhotoSlideshow } from "@/components/ui/PhotoSlideshow";
+import { ContactInfo } from "@/components/ui/ContactInfo";
+import { useRegistrationModal } from "@/components/registration/RegistrationModalProvider";
+import { event } from "@/data/event";
 import { sortedPhotos } from "@/lib/photos";
 
 const FOOTER_PHOTOS = import.meta.glob("../../assets/gala/footer/*.{jpg,jpeg,png,webp,avif}", {
@@ -31,6 +35,8 @@ const LOGO_SLOTS = [
 ];
 
 export function SiteFooter() {
+  const { openRegistration } = useRegistrationModal();
+
   return (
     <footer className="w-full border-t border-line">
       <div className="w-full px-5 pt-10">
@@ -51,12 +57,37 @@ export function SiteFooter() {
           </div>
         </div>
       </div>
+      <div className="w-full px-5 pt-8">
+        <ContactInfo compact />
+      </div>
       <div className="w-full flex flex-col gap-4 px-5 py-10 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="font-display text-2xl tracking-[0.08em]">ETHIOPIAN BUSINESS AND INVESTMENT FORUM</p>
-          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-mute">
-            Addis Ababa , Ethiopia
-          </p>
+          <div className="mt-4 border-t border-line pt-4">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-gold">Venue</p>
+            <p className="mt-1 text-sm">{event.venue}</p>
+            <p className="mt-0.5 text-xs uppercase tracking-[0.18em] text-mute">
+              {event.city}, Ethiopia
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => openRegistration()}
+                className="inline-flex items-center border border-gold bg-gold px-4 py-2 text-[12px] uppercase tracking-[0.18em] text-ink transition-colors hover:bg-gold-2"
+              >
+                Register
+              </button>
+              <a
+                href={event.mapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs uppercase tracking-[0.16em] text-gold transition-colors hover:text-gold-2"
+              >
+                Get directions
+                <ArrowUpRight size={12} />
+              </a>
+            </div>
+          </div>
         </div>
         <div className="flex w-full flex-wrap items-center justify-center gap-3 sm:justify-end">
           {LOGO_SLOTS.map(({ slug, label, imgClass }) => {
