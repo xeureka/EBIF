@@ -27,16 +27,29 @@ export class ResendEmailProvider implements EmailProvider {
     }
 
     try {
+      let fromAddress = this.from;
+      let replyToAddress = this.replyTo;
+
+      // Resend does not allow sending from unverified public webmail domains (e.g. @gmail.com).
+      // If a webmail domain is configured in dev, fallback to onboarding@resend.dev and preserve the sender as reply-to.
+      if (/@(gmail|yahoo|hotmail|outlook)\.com/i.test(fromAddress)) {
+        if (!replyToAddress) {
+          const match = fromAddress.match(/<([^>]+)>/);
+          replyToAddress = match ? match[1] : fromAddress;
+        }
+        fromAddress = "Ethiopian Business & Investment Forum <onboarding@resend.dev>";
+      }
+
       const payload: Record<string, unknown> = {
-        from: this.from,
+        from: fromAddress,
         to: [options.to],
         subject: options.subject,
         html: options.html,
         text: options.text,
       };
 
-      if (this.replyTo) {
-        payload.reply_to = this.replyTo;
+      if (replyToAddress) {
+        payload.reply_to = replyToAddress;
       }
 
       if (options.attachments && options.attachments.length > 0) {

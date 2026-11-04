@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { z } from "zod";
 
 export const serverEnvSchema = z.object({
@@ -13,18 +15,59 @@ export const serverEnvSchema = z.object({
 
 export type ServerEnvConfig = z.infer<typeof serverEnvSchema>;
 
+function readLocalDotEnv(): Record<string, string> {
+  try {
+    const envPath = path.resolve(process.cwd(), ".env");
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, "utf-8");
+      const result: Record<string, string> = {};
+      for (const line of content.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith("#")) {
+          const eqIdx = trimmed.indexOf("=");
+          if (eqIdx !== -1) {
+            const key = trimmed.slice(0, eqIdx).trim();
+            const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, "");
+            result[key] = val;
+          }
+        }
+      }
+      return result;
+    }
+  } catch {
+    // In Cloudflare Workers or environments where filesystem is absent, ignore
+  }
+  return {};
+}
+
 /**
- * Validates and normalizes server environment variables from the given binding/process.env.
+ * Validates and normalizes server environment variables.
+ * In development / Node, dynamically reads from .env and process.env.
+ * In Cloudflare Workers, bindings passed via raw take priority.
  */
-export function getServerEnv(raw: Record<string, string | undefined> = process.env): ServerEnvConfig {
-  const result = serverEnvSchema.safeParse(raw);
+export function getServerEnv(raw?: Record<string, string | undefined>): ServerEnvConfig {
+  const localEnv = readLocalDotEnv();
+  const merged: Record<string, string | undefined> = {
+    ...localEnv,
+    ...process.env,
+  };
+
+  if (raw && typeof raw === "object") {
+    for (const [key, val] of Object.entries(raw)) {
+      if (val !== undefined && val !== "") {
+        merged[key] = val;
+      }
+    }
+  }
+
+  const result = serverEnvSchema.safeParse(merged);
   if (!result.success) {
     console.warn("Server environment warning:", result.error.format());
     return {
-      EMAIL_FROM: raw.EMAIL_FROM || "Ethiopian Business & Investment Forum <noreply@nexabusinessgroup.com>",
-      EMAIL_REPLY_TO: raw.EMAIL_REPLY_TO || "contact@nexabusinessgroup.com",
-      SITE_URL: raw.SITE_URL || "https://ebif.nexabusinessgroup.com",
-      ...raw,
+      EMAIL_FROM: merged.EMAIL_FROM || "Ethiopian Business & Investment Forum <noreply@nexabusinessgroup.com>",
+      EMAIL_REPLY_TO: merged.EMAIL_REPLY_TO || "contact@nexabusinessgroup.com",
+      SITE_URL: merged.SITE_URL || "https://ebif.nexabusinessgroup.com",
+      ...merged,
     };
   }
   return result.data;
