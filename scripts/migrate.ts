@@ -139,9 +139,36 @@ async function main() {
   await client.connect();
 
   try {
-    console.log("Applying schema migrations...");
-    await client.query(MIGRATION_SQL);
-    console.log("✓ All tables, constraints, and indexes successfully created.");
+    const targetArg = process.argv[2];
+    if (targetArg) {
+      let migrationPath = path.resolve(process.cwd(), targetArg);
+      if (!fs.existsSync(migrationPath)) {
+        // Check in migrations directory
+        const candidate = path.resolve(process.cwd(), "migrations", targetArg.endsWith(".sql") ? targetArg : `${targetArg}.sql`);
+        if (fs.existsSync(candidate)) {
+          migrationPath = candidate;
+        } else {
+          // Check for prefix match like 0001
+          const migrationsDir = path.resolve(process.cwd(), "migrations");
+          const files = fs.readdirSync(migrationsDir);
+          const matched = files.find((f) => f.startsWith(targetArg));
+          if (matched) {
+            migrationPath = path.join(migrationsDir, matched);
+          } else {
+            throw new Error(`Migration file not found: ${targetArg}`);
+          }
+        }
+      }
+
+      console.log(`Applying migration file: ${path.basename(migrationPath)}...`);
+      const sqlContent = fs.readFileSync(migrationPath, "utf-8");
+      await client.query(sqlContent);
+      console.log(`✓ Migration ${path.basename(migrationPath)} applied successfully.`);
+    } else {
+      console.log("Applying schema migrations...");
+      await client.query(MIGRATION_SQL);
+      console.log("✓ All tables, constraints, and indexes successfully created.");
+    }
 
     const res = await client.query(`
       SELECT table_name 
