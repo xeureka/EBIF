@@ -36,9 +36,7 @@ function apiServerPlugin(): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   for (const [k, v] of Object.entries(env)) {
-    if (!process.env[k]) {
-      process.env[k] = v;
-    }
+    process.env[k] = v;
   }
 
   return {
