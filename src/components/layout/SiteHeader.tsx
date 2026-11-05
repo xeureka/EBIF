@@ -33,7 +33,7 @@ export function SiteHeader({ homePrefix = "" }: { homePrefix?: string }) {
             className="h-9 w-9 shrink-0 rounded-full border border-line bg-white object-cover"
           />
           {/* Small screens: EBIF + subtitle (subtitle dropped below 360px) */}
-          <div className="flex min-w-0 flex-col items-start xl:hidden" aria-hidden="true">
+          <div className="flex min-w-0 flex-col items-start min-[1300px]:hidden" aria-hidden="true">
             <span className="whitespace-nowrap font-display text-lg leading-none uppercase tracking-[0.04em]">
               EBIF
             </span>
@@ -42,11 +42,11 @@ export function SiteHeader({ homePrefix = "" }: { homePrefix?: string }) {
             </span>
           </div>
           {/* Large screens: current full name, unchanged */}
-          <span className="hidden xl:inline whitespace-nowrap font-display text-[clamp(0.72rem,3.5vw,1.25rem)] tracking-[0.04em]">
+          <span className="hidden min-[1300px]:inline whitespace-nowrap font-display text-[clamp(0.72rem,3.5vw,1.25rem)] tracking-[0.04em]">
             ETHIOPIAN BUSINESS AND INVESTMENT FORUM
           </span>
         </a>
-        <nav className="hidden items-center gap-7 md:flex">
+        <nav className="hidden items-center gap-7 lg:flex">
           {NAV.map((item) => (
             <a
               key={item.label}
@@ -68,7 +68,7 @@ export function SiteHeader({ homePrefix = "" }: { homePrefix?: string }) {
         <button
           ref={menuButtonRef}
           type="button"
-          className="grid h-11 w-11 shrink-0 place-items-center border border-line md:hidden"
+          className="grid h-11 w-11 shrink-0 place-items-center border border-line lg:hidden"
           aria-label={open ? "Close menu" : "Open menu"}
           onClick={() => setOpen((v) => !v)}
         >
@@ -76,7 +76,7 @@ export function SiteHeader({ homePrefix = "" }: { homePrefix?: string }) {
         </button>
       </div>
       {open && (
-        <div className="border-t border-line bg-ink px-5 py-4 md:hidden">
+        <div className="border-t border-line bg-ink px-5 py-4 lg:hidden">
           {NAV.map((item) => (
             <a
               key={item.label}

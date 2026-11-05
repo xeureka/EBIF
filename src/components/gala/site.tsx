@@ -17,7 +17,8 @@ import { ContactInfo } from "@/components/ui/ContactInfo";
 import { PhotoSlideshow } from "@/components/ui/PhotoSlideshow";
 import { event } from "@/data/event";
 import { sortedPhotos } from "@/lib/photos";
-import venueImage from "../../assets/gala/programme/hall.jpg";
+import venueImage from "../../assets/gala/programme/adwa.webp";
+import programmeAttendeeImage from "../../assets/gala/who-attends/an1.jpg";
 
 const PILLARS = [
   {
@@ -199,19 +200,35 @@ const ORGANISER_PHOTOS = import.meta.glob("../../assets/organisers/**/*.{jpg,jpe
   import: "default",
 }) as Record<string, string>;
 
-const PROGRAMME_PHOTOS = import.meta.glob("../../assets/gala/programme/*.{jpg,jpeg,png,webp,avif}", {
-  eager: true,
-  query: "?url",
-  import: "default",
-}) as Record<string, string>;
+const PROGRAMME_PHOTOS = import.meta.glob(
+  [
+    "../../assets/gala/programme/*.{jpg,jpeg,png,webp,avif}",
+    "!../../assets/gala/programme/stage.jpg",
+    "!../../assets/gala/programme/adwa.webp",
+  ],
+  {
+    eager: true,
+    query: "?url",
+    import: "default",
+  },
+) as Record<string, string>;
 
-const WHO_ATTENDS_PHOTOS = import.meta.glob("../../assets/gala/who-attends/*.{jpg,jpeg,png,webp,avif}", {
-  eager: true,
-  query: "?url",
-  import: "default",
-}) as Record<string, string>;
+const WHO_ATTENDS_PHOTOS = import.meta.glob(
+  [
+    "../../assets/gala/who-attends/*.{jpg,jpeg,png,webp,avif}",
+    "!../../assets/gala/who-attends/an1.jpg",
+  ],
+  {
+    eager: true,
+    query: "?url",
+    import: "default",
+  },
+) as Record<string, string>;
 
-const PROGRAMME_SLIDES = sortedPhotos(PROGRAMME_PHOTOS, "/images/stage.jpg");
+const PROGRAMME_SLIDES = [
+  ...sortedPhotos(PROGRAMME_PHOTOS, "/images/stage.jpg"),
+  programmeAttendeeImage,
+];
 const WHO_ATTENDS_SLIDES = sortedPhotos(WHO_ATTENDS_PHOTOS, "/images/lounge.jpg");
 
 function organiserPhotos(slug: string): string[] {
@@ -609,7 +626,7 @@ export function GalaSite() {
             </div>
             <img
               src={venueImage}
-              alt="Event hall at the venue"
+              alt="Adwa Victory Memorial Museum in Addis Ababa"
               loading="lazy"
               className="aspect-[3/2] w-full border border-line object-cover"
             />
