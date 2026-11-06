@@ -7,7 +7,7 @@ import {
   attendeesQuerySchema,
   adminsQuerySchema,
 } from "../../shared/schemas";
-import { registrations, user, account, session, rateLimit, checkIns } from "../db/schema";
+import { registrations, user, account, session, rateLimit, checkIns, emailLog } from "../db/schema";
 import { requireAdmin, type AdminContextEnv } from "../middleware/admin";
 import { recordAuditLog } from "../utils/audit";
 import { getServerEnv } from "../env";
@@ -192,6 +192,25 @@ adminRouter.get("/attendees", async (c) => {
     }
   }
 
+  const emailStatusMap: Record<string, { status: "sent" | "failed"; error: string | null }> = {};
+  if (attendeeIds.length > 0) {
+    const emailRows = await db
+      .select({
+        registrationId: emailLog.registrationId,
+        status: emailLog.status,
+        error: emailLog.error,
+        createdAt: emailLog.createdAt,
+      })
+      .from(emailLog)
+      .where(inArray(emailLog.registrationId, attendeeIds))
+      .orderBy(desc(emailLog.createdAt));
+    for (const row of emailRows) {
+      if (!emailStatusMap[row.registrationId]) {
+        emailStatusMap[row.registrationId] = { status: row.status, error: row.error };
+      }
+    }
+  }
+
   const formattedItems = items.map((item) => {
     let normalizedType: "company" | "investor" | "government" | "international_partner" = "company";
     const lower = item.attendeeType.toLowerCase();
@@ -213,6 +232,8 @@ adminRouter.get("/attendees", async (c) => {
       ticketCode: item.ticketCode,
       day1CheckedIn: checkInsMap[item.id]?.day1 || false,
       day2CheckedIn: checkInsMap[item.id]?.day2 || false,
+      emailStatus: emailStatusMap[item.id]?.status,
+      emailError: emailStatusMap[item.id]?.error,
     };
   });
 
@@ -572,6 +593,7 @@ adminRouter.post("/attendees/:id/resend-email", async (c) => {
     apiKey: serverEnv.RESEND_API_KEY,
     from: serverEnv.EMAIL_FROM,
     replyTo: serverEnv.EMAIL_REPLY_TO,
+    environment: serverEnv.NODE_ENV,
   });
 
   const sendResult = await sendConfirmationEmail({
@@ -585,6 +607,7 @@ adminRouter.post("/attendees/:id/resend-email", async (c) => {
     },
     provider: emailProvider,
     siteUrl: serverEnv.SITE_URL,
+    idempotencyKey: `confirmation-${attendee.id}-${crypto.randomUUID()}`,
   });
 
   // Record audit log

@@ -14,6 +14,10 @@ export interface ServerEnv {
     BETTER_AUTH_SECRET?: string;
     BETTER_AUTH_URL?: string;
     TRUSTED_ORIGINS?: string;
+    RESEND_API_KEY?: string;
+    EMAIL_FROM?: string;
+    EMAIL_REPLY_TO?: string;
+    SITE_URL?: string;
     NODE_ENV?: string;
     ASSETS?: {
       fetch: (request: Request) => Promise<Response>;

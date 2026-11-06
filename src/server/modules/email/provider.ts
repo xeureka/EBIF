@@ -10,6 +10,7 @@ export interface SendEmailOptions {
   html: string;
   text: string;
   attachments?: EmailAttachment[];
+  idempotencyKey?: string;
 }
 
 export interface SendEmailResult {

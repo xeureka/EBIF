@@ -19,7 +19,8 @@
     "cf:check": "pnpm build && wrangler deploy --dry-run",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:backfill-tickets": "tsx scripts/backfill-ticket-codes.ts",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "email:test": "tsx scripts/email-test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.0",

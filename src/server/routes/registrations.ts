@@ -168,6 +168,7 @@ registrationsRouter.post("/", async (c) => {
       apiKey: serverEnv.RESEND_API_KEY,
       from: serverEnv.EMAIL_FROM,
       replyTo: serverEnv.EMAIL_REPLY_TO,
+      environment: serverEnv.NODE_ENV,
     });
 
     const dbUrl = (c.env as Record<string, string | undefined>)?.DATABASE_URL || process.env.DATABASE_URL;
@@ -178,8 +179,8 @@ registrationsRouter.post("/", async (c) => {
         try {
           emailCtx = await createDbContext(dbUrl);
           emailDb = emailCtx.db;
-        } catch (dbErr) {
-          console.warn("Could not create independent db context for async email:", dbErr);
+        } catch {
+          console.warn("Could not create independent db context for async email");
         }
       }
       try {
@@ -213,7 +214,7 @@ registrationsRouter.post("/", async (c) => {
     }
 
     if (!hasWaitUntil) {
-      emailPromise.catch((err) => console.error("Async email dispatch error:", err));
+      emailPromise.catch(() => console.error("Async email dispatch error"));
     }
 
     return c.json({ ok: true, ticketCode });

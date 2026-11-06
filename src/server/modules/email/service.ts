@@ -20,10 +20,21 @@ export async function sendConfirmationEmail(params: {
   attendee: AttendeeEmailData;
   provider: EmailProvider;
   siteUrl: string;
+  idempotencyKey?: string;
 }): Promise<{ ok: boolean; providerId?: string; error?: string }> {
-  const { db, attendee, provider, siteUrl } = params;
+  const {
+    db,
+    attendee,
+    provider,
+    siteUrl,
+    idempotencyKey = `confirmation-${params.attendee.id}`,
+  } = params;
 
   try {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(attendee.email.trim())) {
+      throw new Error("Invalid recipient email");
+    }
+
     const rendered = await renderConfirmationEmail({
       attendeeName: attendee.fullName,
       organization: attendee.organization,
@@ -37,6 +48,7 @@ export async function sendConfirmationEmail(params: {
       html: rendered.html,
       text: rendered.text,
       attachments: rendered.attachments,
+      idempotencyKey,
     });
 
     // Record in email_log
@@ -52,7 +64,7 @@ export async function sendConfirmationEmail(params: {
 
     return result;
   } catch (err: unknown) {
-    const errorSnippet = err instanceof Error ? err.message.slice(0, 500) : "Unknown email error";
+    const errorSnippet = err instanceof Error ? err.name || "EmailServiceError" : "EmailServiceError";
     console.error("Failed to execute confirmation email service:", errorSnippet);
 
     try {

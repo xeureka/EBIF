@@ -153,6 +153,7 @@ export function AttendeesPage() {
     try {
       await resendAttendeeEmail(attendee.id);
       toast.success(`Confirmation email resent to ${attendee.email}`);
+      await fetchAttendeesData();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to resend confirmation email");
     } finally {
@@ -210,6 +211,26 @@ export function AttendeesPage() {
       header: "Phone",
       accessorKey: "phone",
       cellClassName: "font-mono text-mute",
+    },
+    {
+      header: "Email status",
+      cell: (item) =>
+        item.emailStatus ? (
+          <span
+            title={
+              item.emailStatus === "failed"
+                ? item.emailError || "Email delivery failed"
+                : "Confirmation email sent"
+            }
+            className={`inline-flex items-center border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+              item.emailStatus === "sent"
+                ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                : "border-rose/50 bg-rose/10 text-rose"
+            }`}
+          >
+            {item.emailStatus === "sent" ? "Sent" : "Failed"}
+          </span>
+        ) : null,
     },
     {
       header: "Organization",
