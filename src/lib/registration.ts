@@ -27,9 +27,8 @@ const MAP_TYPE_TO_SHARED: Record<AttendeeType, SharedAttendeeType> = {
 };
 
 export async function submitRegistration(payload: RegistrationPayload): Promise<{ ok: boolean; ticketCode?: string }> {
-  // Extract 9 digits from phone number
   const rawDigits = payload.phone.replace(/\D/g, "");
-  const cleanPhone = rawDigits.startsWith("251") ? rawDigits.slice(3) : rawDigits;
+  const cleanPhone = `+${rawDigits}`;
 
   const sharedType = MAP_TYPE_TO_SHARED[payload.attendeeType] || "company";
 

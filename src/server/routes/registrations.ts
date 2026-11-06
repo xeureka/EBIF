@@ -132,10 +132,6 @@ registrationsRouter.post("/", async (c) => {
       );
     }
 
-    // Format phone number to standard +251XXXXXXXXX
-    const cleanDigits = phone.replace(/\D/g, "");
-    const formattedPhone = `+251${cleanDigits}`;
-
     // Unique reference code
     const referenceHex = crypto.randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
     const reference = `EBIF-${referenceHex}`;
@@ -152,7 +148,7 @@ registrationsRouter.post("/", async (c) => {
       id: regId,
       fullName,
       email,
-      phone: formattedPhone,
+      phone,
       organization,
       jobTitle,
       attendeeType: mappedType,
