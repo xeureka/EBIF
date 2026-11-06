@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import { z } from "zod";
 
 export const serverEnvSchema = z.object({
@@ -63,98 +61,73 @@ function isValidEmailSetting(value: string): boolean {
   return parseEmailAddress(value) !== null;
 }
 
-function readLocalDotEnv(): Record<string, string> {
-  try {
-    const envPath = path.resolve(process.cwd(), ".env");
-    if (fs.existsSync(envPath)) {
-      const content = fs.readFileSync(envPath, "utf-8");
-      const result: Record<string, string> = {};
-      for (const line of content.split("\n")) {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith("#")) {
-          const eqIdx = trimmed.indexOf("=");
-          if (eqIdx !== -1) {
-            const key = trimmed.slice(0, eqIdx).trim();
-            const val = stripSurroundingQuotes(trimmed.slice(eqIdx + 1));
-            result[key] = val;
-          }
-        }
-      }
-      return result;
+export type ServerEnvSource = Record<string, string | undefined>;
+
+function normalizeSource(raw: ServerEnvSource): ServerEnvSource {
+  const source: ServerEnvSource = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === "string" && value !== "") {
+      source[key] = stripSurroundingQuotes(value);
     }
-  } catch {
-    // In Cloudflare Workers or environments where filesystem is absent, ignore
   }
-  return {};
+  return source;
 }
 
-export function getServerEnvPresence(
-  raw?: Record<string, string | undefined>,
-): ServerEnvPresence {
-  const localEnv = readLocalDotEnv();
-  const processEnv = typeof process === "undefined" ? {} : process.env;
-  const runtimeEnv: Record<string, string | undefined> = {};
-  const keys: Array<keyof ServerEnvPresence> = [
-    "RESEND_API_KEY",
-    "EMAIL_FROM",
-    "EMAIL_REPLY_TO",
-    "SITE_URL",
-  ];
-  for (const key of keys) {
-    const value = raw?.[key];
-    if (typeof value === "string" && value.trim()) {
-      runtimeEnv[key] = stripSurroundingQuotes(value);
-    }
+const workerBindingKeys = [
+  "DATABASE_URL",
+  "BETTER_AUTH_SECRET",
+  "BETTER_AUTH_URL",
+  "TRUSTED_ORIGINS",
+  "RESEND_API_KEY",
+  "EMAIL_FROM",
+  "EMAIL_REPLY_TO",
+  "SITE_URL",
+  "NODE_ENV",
+] as const;
+
+function readWorkerBindings(raw: ServerEnvSource = {}): ServerEnvSource {
+  const source: ServerEnvSource = {};
+  for (const key of workerBindingKeys) {
+    const value = raw[key];
+    if (typeof value === "string" && value !== "") source[key] = value;
   }
-  const source = Object.keys(runtimeEnv).length > 0 ? runtimeEnv : { ...localEnv, ...processEnv };
+  return source;
+}
+
+export function parseServerEnv(raw: ServerEnvSource): ServerEnvConfig {
+  const source = normalizeSource(raw);
+  const result = serverEnvSchema.safeParse(source);
+  if (result.success) return result.data;
+
+  console.warn("Invalid server environment configuration; using safe email defaults.");
+  return {
+    DATABASE_URL: source.DATABASE_URL,
+    BETTER_AUTH_SECRET: source.BETTER_AUTH_SECRET,
+    BETTER_AUTH_URL: source.BETTER_AUTH_URL,
+    TRUSTED_ORIGINS: source.TRUSTED_ORIGINS,
+    RESEND_API_KEY: source.RESEND_API_KEY,
+    EMAIL_FROM: isValidEmailSetting(source.EMAIL_FROM || "")
+      ? stripSurroundingQuotes(source.EMAIL_FROM!)
+      : "Ethiopian Business & Investment Forum <events@nexabusinessgroup.com>",
+    EMAIL_REPLY_TO: isValidEmailSetting(source.EMAIL_REPLY_TO || "")
+      ? stripSurroundingQuotes(source.EMAIL_REPLY_TO!)
+      : "events@nexabusinessgroup.com",
+    SITE_URL: /^https?:\/\//.test(source.SITE_URL || "")
+      ? source.SITE_URL!
+      : "https://ebif.nexabusinessgroup.com",
+  };
+}
+
+export function getWorkerEnv(raw?: ServerEnvSource): ServerEnvConfig {
+  return parseServerEnv(readWorkerBindings(raw));
+}
+
+export function getWorkerEnvPresence(raw?: ServerEnvSource): ServerEnvPresence {
+  const source = normalizeSource(readWorkerBindings(raw));
   return {
     RESEND_API_KEY: Boolean(source.RESEND_API_KEY?.trim()),
     EMAIL_FROM: Boolean(source.EMAIL_FROM?.trim()),
     EMAIL_REPLY_TO: Boolean(source.EMAIL_REPLY_TO?.trim()),
     SITE_URL: Boolean(source.SITE_URL?.trim()),
   };
-}
-
-/**
- * Validates and normalizes server environment variables.
- * In development / Node, dynamically reads from .env and process.env.
- * In Cloudflare Workers, bindings passed via raw take priority.
- */
-export function getServerEnv(raw?: Record<string, string | undefined>): ServerEnvConfig {
-  const localEnv = readLocalDotEnv();
-  const processEnv = typeof process === "undefined" ? {} : process.env;
-  const runtimeEnv: Record<string, string | undefined> = {};
-
-  if (raw && typeof raw === "object") {
-    for (const [key, val] of Object.entries(raw)) {
-      if (typeof val === "string" && val !== "") {
-        runtimeEnv[key] = stripSurroundingQuotes(val);
-      }
-    }
-  }
-
-  const merged: Record<string, string | undefined> =
-    Object.keys(runtimeEnv).length > 0 ? runtimeEnv : { ...localEnv, ...processEnv };
-
-  const result = serverEnvSchema.safeParse(merged);
-  if (!result.success) {
-    console.warn("Invalid server environment configuration; using safe email defaults.");
-    return {
-      DATABASE_URL: merged.DATABASE_URL,
-      BETTER_AUTH_SECRET: merged.BETTER_AUTH_SECRET,
-      BETTER_AUTH_URL: merged.BETTER_AUTH_URL,
-      TRUSTED_ORIGINS: merged.TRUSTED_ORIGINS,
-      RESEND_API_KEY: merged.RESEND_API_KEY,
-      EMAIL_FROM: isValidEmailSetting(merged.EMAIL_FROM || "")
-        ? stripSurroundingQuotes(merged.EMAIL_FROM!)
-        : "Ethiopian Business & Investment Forum <events@nexabusinessgroup.com>",
-      EMAIL_REPLY_TO: isValidEmailSetting(merged.EMAIL_REPLY_TO || "")
-        ? stripSurroundingQuotes(merged.EMAIL_REPLY_TO!)
-        : "events@nexabusinessgroup.com",
-      SITE_URL: /^https?:\/\//.test(merged.SITE_URL || "")
-        ? merged.SITE_URL!
-        : "https://ebif.nexabusinessgroup.com",
-    };
-  }
-  return result.data;
 }

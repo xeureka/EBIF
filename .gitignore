@@ -8,5 +8,6 @@ dist
 !.env.example
 .vercel
 credentials.md
+tmp/
 
 note.ts

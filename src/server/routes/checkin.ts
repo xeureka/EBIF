@@ -9,7 +9,7 @@ import {
 } from "../../shared/schemas";
 import type { AdminContextEnv } from "../middleware/admin";
 import { recordAuditLog } from "../utils/audit";
-import { getServerEnv } from "../env";
+import { getWorkerEnv } from "../env";
 import { ResendEmailProvider } from "../modules/email/resend";
 import {
   checkInByCode,
@@ -286,12 +286,13 @@ checkInRouter.post("/walk-in", async (c) => {
     );
   }
 
-  const serverEnv = getServerEnv(c.env as Record<string, string | undefined>);
+  const serverEnv = getWorkerEnv(c.env as Record<string, string | undefined>);
   const emailProvider = new ResendEmailProvider({
     apiKey: serverEnv.RESEND_API_KEY,
     from: serverEnv.EMAIL_FROM,
     replyTo: serverEnv.EMAIL_REPLY_TO,
     environment: serverEnv.NODE_ENV,
+    source: "worker",
   });
 
   try {

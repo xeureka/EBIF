@@ -2,6 +2,7 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
+import { getNodeEnv } from "./src/server/env.node";
 
 function apiServerPlugin(): Plugin {
   return {
@@ -14,7 +15,7 @@ function apiServerPlugin(): Plugin {
         try {
           const { app } = await server.ssrLoadModule("/src/server/app.ts");
           const { getRequestListener } = await import("@hono/node-server");
-          getRequestListener(app.fetch)(req, res);
+          getRequestListener((request) => app.fetch(request, getNodeEnv()))(req, res);
         } catch (err) {
           console.error("API server middleware error:", err);
           res.statusCode = 500;
