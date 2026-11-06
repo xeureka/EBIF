@@ -96,14 +96,11 @@ try {
   } catch {
     // Keep status-only diagnosis.
   }
-  if (response.status === 401) fail("domains", "401 InvalidApiKey");
-  if (response.status === 403) {
-    const message = typeof body.message === "string" ? body.message.toLowerCase() : "";
-    if (message.includes("restricted")) {
-      print("domains", "SKIP", "403 restricted key; sending-only key, domain listing unavailable");
-    } else {
-      fail("domains", errorDetail(response, body));
-    }
+  const errorName = typeof body.name === "string" ? body.name.toLowerCase() : "";
+  if (errorName === "restricted_api_key") {
+    print("domains", "SKIP", errorDetail(response, body) + "; sending-only key, expected");
+  } else if (errorName === "invalid_api_key" || errorName === "missing_api_key") {
+    fail("domains", errorDetail(response, body));
   } else if (!response.ok) {
     fail("domains", errorDetail(response, body));
   } else {
