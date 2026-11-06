@@ -32,6 +32,7 @@ export async function renderConfirmationEmail(
   const safeName = escapeHtml(params.attendeeName.trim());
   const safeOrg = params.organization ? escapeHtml(params.organization.trim()) : "";
   const formattedCode = formatTicketCode(params.ticketCode);
+  const safeTicketCode = escapeHtml(formattedCode);
   const cleanCode = normalizeTicketCode(params.ticketCode);
 
   const cleanSiteUrl = params.siteUrl.replace(/\/+$/, "");
@@ -88,6 +89,7 @@ Ethiopian Business & Investment Forum Organizing Committee
   <title>${escapeHtml(subject)}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f7f9fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937;">
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">Your registration for the Ethiopian Business &amp; Investment Forum is confirmed. Your ticket code is ${safeTicketCode}.</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f7f9fa; padding: 32px 16px;">
     <tr>
       <td align="center">
@@ -123,7 +125,7 @@ Ethiopian Business & Investment Forum Organizing Committee
                     </p>
                     ${safeOrg ? `<p style="margin: 0 0 10px 0; font-size: 14px; color: #4b5563;"><strong style="color: #111827;">Organization:</strong> ${safeOrg}</p>` : ""}
                     <p style="margin: 0; font-size: 14px; color: #4b5563;">
-                      <strong style="color: #111827;">Ticket Code:</strong> <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 700; color: #0b1329; background-color: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 15px;">${formattedCode}</span>
+                      <strong style="color: #111827;">Ticket Code:</strong> <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 700; color: #0b1329; background-color: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 15px;">${safeTicketCode}</span>
                     </p>
                   </td>
                 </tr>
@@ -133,7 +135,7 @@ Ethiopian Business & Investment Forum Organizing Committee
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 28px; text-align: center;">
                 <tr>
                   <td align="center">
-                    <a href="${ticketUrl}" target="_blank" style="display: inline-block; background-color: #0b1329; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 28px; border-radius: 8px; border: 1px solid #0b1329;">
+                    <a href="${escapeHtml(ticketUrl)}" target="_blank" style="display: inline-block; background-color: #0b1329; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 28px; border-radius: 8px; border: 1px solid #0b1329;">
                       View your ticket
                     </a>
                   </td>
@@ -182,7 +184,7 @@ Ethiopian Business & Investment Forum Organizing Committee
     text,
     attachments: [
       {
-        filename: `ticket-${cleanCode}.png`,
+        filename: "ebif-ticket-qr.png",
         content: qrBase64,
         content_type: "image/png",
       },

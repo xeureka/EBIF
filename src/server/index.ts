@@ -1,5 +1,7 @@
 import { app } from "./app";
 
+type AppExecutionContext = Parameters<typeof app.fetch>[2];
+
 interface WorkerEnv {
   ASSETS?: {
     fetch: (request: Request) => Promise<Response>;
@@ -8,10 +10,14 @@ interface WorkerEnv {
   BETTER_AUTH_SECRET?: string;
   BETTER_AUTH_URL?: string;
   TRUSTED_ORIGINS?: string;
+  RESEND_API_KEY?: string;
+  EMAIL_FROM?: string;
+  EMAIL_REPLY_TO?: string;
+  SITE_URL?: string;
 }
 
 export default {
-  async fetch(request: Request, env: WorkerEnv, ctx?: any): Promise<Response> {
+  async fetch(request: Request, env: WorkerEnv, ctx?: AppExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
     // Route /api/* requests to Hono
