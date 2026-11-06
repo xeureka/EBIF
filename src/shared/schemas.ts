@@ -22,7 +22,7 @@ export const registrationSchema = z.object({
   phone: z
     .string()
     .trim()
-    .regex(/^[97]\d{8}$/, "Phone must be 9 digits starting with 9 or 7"),
+    .regex(/^\+[1-9]\d{6,14}$/, "Please enter a valid international phone number"),
   organization: z
     .string()
     .trim()

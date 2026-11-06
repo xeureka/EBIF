@@ -19,12 +19,17 @@ import {
 import QRCode from "qrcode";
 import { event } from "@/data/event";
 import {
+  COUNTRY_PHONE_CODES,
+  DEFAULT_COUNTRY_PHONE_CODE,
+} from "@/data/countryPhoneCodes";
+import {
   submitRegistration,
   type AttendeeType,
   type RegistrationPayload,
 } from "@/lib/registration";
 
 type FormState = {
+  countryCode: string;
   fullName: string;
   email: string;
   phone: string;
@@ -47,6 +52,7 @@ const REQUIRED_FIELDS: FieldName[] = [
 ];
 
 const EMPTY_FORM: FormState = {
+  countryCode: DEFAULT_COUNTRY_PHONE_CODE,
   fullName: "",
   email: "",
   phone: "",
@@ -89,7 +95,21 @@ const ATTENDEE_TYPES: {
 ];
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_PATTERN = /^[97]\d{8}$/;
+
+function selectedCountry(countryCode: string) {
+  return (
+    COUNTRY_PHONE_CODES.find((country) => country.code === countryCode) ||
+    COUNTRY_PHONE_CODES.find((country) => country.code === DEFAULT_COUNTRY_PHONE_CODE)!
+  );
+}
+
+function phoneLengthLimits(countryCode: string) {
+  const dialDigits = selectedCountry(countryCode).dialCode.replace(/\D/g, "").length;
+  return {
+    min: Math.max(4, 7 - dialDigits),
+    max: 15 - dialDigits,
+  };
+}
 
 function validateField(name: FieldName, values: FormState): string {
   switch (name) {
@@ -100,9 +120,13 @@ function validateField(name: FieldName, values: FormState): string {
       return EMAIL_PATTERN.test(values.email.trim()) ? "" : "Enter a valid email address.";
     case "phone":
       if (!values.phone) return "Phone number is required.";
-      return PHONE_PATTERN.test(values.phone)
-        ? ""
-        : "Enter 9 digits starting with 9 or 7.";
+      {
+        const limits = phoneLengthLimits(values.countryCode);
+        if (values.phone.length < limits.min || values.phone.length > limits.max) {
+          return `Enter ${limits.min}–${limits.max} digits for ${selectedCountry(values.countryCode).name}.`;
+        }
+        return "";
+      }
     case "organization":
       return values.organization.trim() ? "" : "Organization is required.";
     case "jobTitle":
@@ -111,6 +135,8 @@ function validateField(name: FieldName, values: FormState): string {
       return values.attendeeType ? "" : "Select an attendee type.";
     case "consent":
       return values.consent ? "" : "Please confirm you agree to be contacted.";
+    case "countryCode":
+      return "";
   }
 }
 
@@ -277,17 +303,19 @@ export function RegistrationModal({
 
   function handlePhoneChange(changeEvent: ChangeEvent<HTMLInputElement>) {
     let digits = changeEvent.target.value.replace(/\D/g, "");
-    if (digits.length > 0 && digits[0] !== "9" && digits[0] !== "7") {
-      if (digits.startsWith("251") && (digits[3] === "9" || digits[3] === "7")) {
-        digits = digits.slice(3);
-      } else if (digits.startsWith("0") && (digits[1] === "9" || digits[1] === "7")) {
-        digits = digits.slice(1);
-      } else {
-        digits = "";
-      }
-    }
-    digits = digits.slice(0, 9);
+    if (digits.startsWith("0")) digits = digits.slice(1);
+    digits = digits.slice(0, phoneLengthLimits(form.countryCode).max);
     updateField("phone", digits);
+  }
+
+  function handleCountryChange(changeEvent: ChangeEvent<HTMLSelectElement>) {
+    const countryCode = changeEvent.target.value;
+    const next: FormState = { ...form, countryCode };
+    setForm(next);
+    if (touched.phone) {
+      setErrors((current) => ({ ...current, phone: validateField("phone", next) }));
+    }
+    setSubmitError("");
   }
 
   function selectAttendeeType(value: AttendeeType) {
@@ -336,7 +364,7 @@ export function RegistrationModal({
         name: form.fullName.trim(),
         organisation: form.organization.trim(),
         email: form.email.trim(),
-        phone: `+251${form.phone}`,
+        phone: `${selectedCountry(form.countryCode).dialCode}${form.phone}`,
         jobTitle: form.jobTitle.trim(),
         role: attendeeType,
         attendeeType,
@@ -543,21 +571,31 @@ export function RegistrationModal({
                     </div>
 
                     <div>
-                      <FieldLabel htmlFor="registration-phone" label="Phone" />
+                      <FieldLabel htmlFor="registration-phone" label="Phone number" />
                       <div
-                        className={`flex h-11 border ${
+                        className={`flex min-w-0 h-11 border ${
                           errors.phone ? "border-rose" : "border-line focus-within:border-gold"
                         }`}
                       >
-                        <span className="flex items-center border-r border-line bg-ink-2 px-3 text-sm text-mute">
-                          +251
-                        </span>
+                        <select
+                          aria-label="Country calling code"
+                          value={form.countryCode}
+                          onChange={handleCountryChange}
+                          className="w-[46%] min-w-0 border-r border-line bg-ink-2 px-2 text-xs text-cream outline-none sm:w-auto sm:px-3"
+                        >
+                          {COUNTRY_PHONE_CODES.map((country) => (
+                            <option key={country.code} value={country.code}>
+                              {country.name} ({country.dialCode})
+                            </option>
+                          ))}
+                        </select>
                         <input
                           id="registration-phone"
                           data-field="phone"
                           type="tel"
                           inputMode="numeric"
-                          pattern="[97][0-9]{8}"
+                          pattern="[0-9]{4,14}"
+                          maxLength={phoneLengthLimits(form.countryCode).max}
                           placeholder="911 984 806"
                           value={form.phone}
                           onChange={handlePhoneChange}
@@ -567,7 +605,7 @@ export function RegistrationModal({
                         />
                       </div>
                       <p className="mt-1.5 text-xs text-mute">
-                        9 digits, starting with 9 or 7.
+                        Enter the number without the country code or leading trunk zero.
                       </p>
                       <FieldError message={errors.phone} />
                     </div>
