@@ -4,7 +4,7 @@ import { registrationSchema } from "../../shared/schemas";
 import { registrations, rateLimit } from "../db/schema";
 import { createDbContext, closeDbContext, type AppDb, type DbContext } from "../db/client";
 import { generateUniqueTicketCode } from "../modules/tickets/code";
-import { getServerEnv } from "../env";
+import { getWorkerEnv } from "../env";
 import { ResendEmailProvider } from "../modules/email/resend";
 import { sendConfirmationEmail } from "../modules/email/service";
 
@@ -159,12 +159,13 @@ registrationsRouter.post("/", async (c) => {
     });
 
     // Non-blocking confirmation email dispatch
-    const serverEnv = getServerEnv(c.env as Record<string, string | undefined>);
+    const serverEnv = getWorkerEnv(c.env as Record<string, string | undefined>);
     const emailEnv = {
       apiKey: serverEnv.RESEND_API_KEY,
       from: serverEnv.EMAIL_FROM,
       replyTo: serverEnv.EMAIL_REPLY_TO,
       environment: serverEnv.NODE_ENV,
+      source: "worker" as const,
     };
     const emailProvider = new ResendEmailProvider(emailEnv);
 

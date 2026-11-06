@@ -1,4 +1,5 @@
-import { getServerEnv, getServerEnvPresence, parseEmailAddress } from "../src/server/env";
+import { getNodeEnv, getNodeEnvPresence } from "../src/server/env.node";
+import { parseEmailAddress } from "../src/server/env";
 import { renderConfirmationEmail } from "../src/server/modules/email/template";
 
 interface ResendResponse {
@@ -53,8 +54,8 @@ function fail(step: string, detail: string): never {
   process.exit(1);
 }
 
-const presence = getServerEnvPresence();
-const env = getServerEnv();
+const presence = getNodeEnvPresence();
+const env = getNodeEnv();
 const from = parseEmailAddress(env.EMAIL_FROM);
 const replyTo = parseEmailAddress(env.EMAIL_REPLY_TO);
 const apiKey = env.RESEND_API_KEY?.trim();

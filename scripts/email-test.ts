@@ -1,4 +1,4 @@
-import { getServerEnv } from "../src/server/env";
+import { getNodeEnv } from "../src/server/env.node";
 import { ResendEmailProvider } from "../src/server/modules/email/resend";
 import { renderConfirmationEmail } from "../src/server/modules/email/template";
 
@@ -9,7 +9,7 @@ if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
   process.exit(1);
 }
 
-const serverEnv = getServerEnv();
+const serverEnv = getNodeEnv();
 const rendered = await renderConfirmationEmail({
   attendeeName: "Test Recipient",
   organization: "EBIF Email Test",
@@ -21,6 +21,7 @@ const provider = new ResendEmailProvider({
   from: serverEnv.EMAIL_FROM,
   replyTo: serverEnv.EMAIL_REPLY_TO,
   environment: serverEnv.NODE_ENV,
+  source: "node",
 });
 
 const result = await provider.sendEmail({

@@ -6,6 +6,7 @@ export interface ResendProviderConfig {
   from: string;
   replyTo?: string;
   environment?: string;
+  source?: "worker" | "node";
 }
 
 function truncateMessage(message: string): string {
@@ -17,6 +18,7 @@ export class ResendEmailProvider implements EmailProvider {
   private from: string;
   private replyTo?: string;
   private environment: string;
+  private source: "worker" | "node";
   private static missingKeyLogged = false;
 
   constructor(config: ResendProviderConfig) {
@@ -24,6 +26,7 @@ export class ResendEmailProvider implements EmailProvider {
     this.from = stripSurroundingQuotes(config.from);
     this.replyTo = config.replyTo ? stripSurroundingQuotes(config.replyTo) : undefined;
     this.environment = config.environment || "development";
+    this.source = config.source || "node";
   }
 
   async sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
@@ -41,7 +44,10 @@ export class ResendEmailProvider implements EmailProvider {
       }
       return {
         ok: false,
-        error: "Missing RESEND_API_KEY",
+        error:
+          this.source === "worker"
+            ? "RESEND_API_KEY not found in Worker env"
+            : "RESEND_API_KEY not set in Node env",
       };
     }
 
