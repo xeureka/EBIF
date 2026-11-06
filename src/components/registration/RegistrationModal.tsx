@@ -418,8 +418,9 @@ export function RegistrationModal({
                 You're registered
               </h2>
               <p className="mt-2 text-sm text-mute max-w-md">
-                A confirmation email with your QR code has been sent to{" "}
-                <span className="text-cream font-semibold">{form.email}</span>
+                We are sending a confirmation email with your QR code to{" "}
+                <span className="text-cream font-semibold">{form.email}</span>. If you do not see it
+                in a few minutes, check your spam folder. You can also download your QR code here.
               </p>
 
               {/* QR Code Canvas/Image */}

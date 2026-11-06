@@ -16,6 +16,8 @@ export interface AttendeeItem {
   ticketCode?: string | null;
   day1CheckedIn?: boolean;
   day2CheckedIn?: boolean;
+  emailStatus?: "sent" | "failed";
+  emailError?: string | null;
 }
 
 export interface AttendeeStats {
