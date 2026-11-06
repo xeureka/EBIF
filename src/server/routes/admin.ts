@@ -10,8 +10,7 @@ import {
 import { registrations, user, account, session, rateLimit, checkIns, emailLog } from "../db/schema";
 import { requireAdmin, type AdminContextEnv } from "../middleware/admin";
 import { recordAuditLog } from "../utils/audit";
-import { getServerEnv } from "../env";
-import { generateUniqueTicketCode } from "../modules/tickets/code";
+import { getServerEnv, getServerEnvPresence, parseEmailAddress } from "../env";
 import { ResendEmailProvider } from "../modules/email/resend";
 import { sendConfirmationEmail } from "../modules/email/service";
 import { checkInRouter } from "./checkin";
@@ -23,6 +22,29 @@ adminRouter.use("*", requireAdmin);
 
 // Mount Check-in router under /api/admin/check-in
 adminRouter.route("/check-in", checkInRouter);
+
+/**
+ * GET /api/admin/email/status
+ * Returns safe configuration diagnostics without exposing secret values.
+ */
+adminRouter.get("/email/status", (c) => {
+  const rawEnv = c.env as Record<string, string | undefined>;
+  const serverEnv = getServerEnv(rawEnv);
+  const presence = getServerEnvPresence(rawEnv);
+  const sender = presence.EMAIL_FROM ? parseEmailAddress(serverEnv.EMAIL_FROM) : null;
+  const replyTo = presence.EMAIL_REPLY_TO ? parseEmailAddress(serverEnv.EMAIL_REPLY_TO) : null;
+
+  return c.json({
+    ok: true,
+    present: presence,
+    sender: {
+      address: sender?.address || null,
+      domain: sender?.domain || null,
+      parses: sender !== null,
+    },
+    replyToParses: replyTo !== null,
+  });
+});
 
 /**
  * Generate a random 16-character secure password without look-alike characters.
@@ -579,34 +601,26 @@ adminRouter.post("/attendees/:id/resend-email", async (c) => {
     );
   }
 
-  let ticketCode = attendee.ticketCode;
-  if (!ticketCode) {
-    ticketCode = await generateUniqueTicketCode(db);
-    await db
-      .update(registrations)
-      .set({ ticketCode })
-      .where(eq(registrations.id, attendee.id));
-  }
-
   const serverEnv = getServerEnv(c.env as Record<string, string | undefined>);
-  const emailProvider = new ResendEmailProvider({
+  const emailEnv = {
     apiKey: serverEnv.RESEND_API_KEY,
     from: serverEnv.EMAIL_FROM,
     replyTo: serverEnv.EMAIL_REPLY_TO,
     environment: serverEnv.NODE_ENV,
-  });
+  };
+  const emailProvider = new ResendEmailProvider(emailEnv);
 
   const sendResult = await sendConfirmationEmail({
     db,
-    attendee: {
-      id: attendee.id,
-      fullName: attendee.fullName,
-      email: attendee.email,
-      organization: attendee.organization,
-      ticketCode,
+    registrationId: attendee.id,
+    env: {
+      RESEND_API_KEY: emailEnv.apiKey,
+      EMAIL_FROM: emailEnv.from,
+      EMAIL_REPLY_TO: emailEnv.replyTo || "",
+      SITE_URL: serverEnv.SITE_URL,
+      NODE_ENV: emailEnv.environment,
     },
     provider: emailProvider,
-    siteUrl: serverEnv.SITE_URL,
     idempotencyKey: `confirmation-${attendee.id}-${crypto.randomUUID()}`,
   });
 

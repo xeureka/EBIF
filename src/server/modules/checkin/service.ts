@@ -3,7 +3,7 @@ import { registrations, checkIns, user } from "../../db/schema";
 import type { AppDb } from "../../db/client";
 import { normalizeTicketCode, formatTicketCode, generateUniqueTicketCode } from "../tickets/code";
 import type { EmailProvider } from "../email/provider";
-import { sendConfirmationEmail } from "../email/service";
+import { sendConfirmationEmail, type EmailRuntimeEnv } from "../email/service";
 
 export interface AdminActor {
   id: string;
@@ -339,7 +339,7 @@ export async function registerWalkIn(
     agreesToContact: true;
     day: 1 | 2;
   },
-  siteUrl: string,
+  emailEnv: EmailRuntimeEnv,
   emailProvider?: EmailProvider,
 ) {
   // Check duplicate email
@@ -396,16 +396,10 @@ export async function registerWalkIn(
   if (emailProvider) {
     sendConfirmationEmail({
       db,
-      attendee: {
-        id: regId,
-        fullName: params.fullName,
-        email: params.email,
-        organization: params.organization,
-        ticketCode,
-      },
+      registrationId: regId,
+      env: emailEnv,
       provider: emailProvider,
-      siteUrl,
-    }).catch((err) => console.error("Walk-in email error:", err));
+    }).catch(() => console.error("Walk-in email error"));
   }
 
   return {
