@@ -1,10 +1,15 @@
 import type { EmailProvider, SendEmailOptions, SendEmailResult } from "./provider";
+import { stripSurroundingQuotes } from "../../env";
 
 export interface ResendProviderConfig {
   apiKey?: string;
   from: string;
   replyTo?: string;
   environment?: string;
+}
+
+function truncateMessage(message: string): string {
+  return message.trim().slice(0, 300);
 }
 
 export class ResendEmailProvider implements EmailProvider {
@@ -16,8 +21,8 @@ export class ResendEmailProvider implements EmailProvider {
 
   constructor(config: ResendProviderConfig) {
     this.apiKey = config.apiKey?.trim();
-    this.from = config.from;
-    this.replyTo = config.replyTo;
+    this.from = stripSurroundingQuotes(config.from);
+    this.replyTo = config.replyTo ? stripSurroundingQuotes(config.replyTo) : undefined;
     this.environment = config.environment || "development";
   }
 
@@ -59,6 +64,7 @@ export class ResendEmailProvider implements EmailProvider {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      "User-Agent": "ebif-site/1.0",
     };
     if (options.idempotencyKey) headers["Idempotency-Key"] = options.idempotencyKey;
 
@@ -74,20 +80,28 @@ export class ResendEmailProvider implements EmailProvider {
         if (response.ok) {
           const data = (await response.json()) as { id?: string };
           if (!data.id)
-            return { ok: false, error: `HTTP ${response.status} ResendResponseMissingId` };
+            return {
+              ok: false,
+              error: `HTTP ${response.status} ResendResponseMissingId: response did not include an email id`,
+              errorName: "ResendResponseMissingId",
+            };
           return { ok: true, providerId: data.id };
         }
 
         let errorName = "ResendError";
+        let errorMessage = "No error message returned by Resend";
         try {
-          const data = (await response.json()) as { name?: unknown };
+          const data = (await response.json()) as { name?: unknown; message?: unknown };
           if (typeof data.name === "string" && data.name.trim()) errorName = data.name.trim();
+          if (typeof data.message === "string" && data.message.trim()) {
+            errorMessage = truncateMessage(data.message);
+          }
         } catch {
-          // Keep the safe status/name summary.
+          // Keep the safe status/name/message summary.
         }
-        lastError = `HTTP ${response.status} ${errorName}`;
+        lastError = `HTTP ${response.status} ${errorName}: ${errorMessage}`;
         if (response.status !== 429 && response.status < 500)
-          return { ok: false, error: lastError };
+          return { ok: false, error: lastError, errorName };
       } catch {
         lastError = "NetworkError";
       }
@@ -95,6 +109,6 @@ export class ResendEmailProvider implements EmailProvider {
       if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
     }
 
-    return { ok: false, error: lastError };
+    return { ok: false, error: lastError, errorName: "ResendRequestError" };
   }
 }

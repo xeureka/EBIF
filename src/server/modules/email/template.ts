@@ -15,6 +15,7 @@ export interface RenderedEmail {
   html: string;
   text: string;
   attachments: EmailAttachment[];
+  attachmentWarning?: string;
 }
 
 export function escapeHtml(str: string): string {
@@ -38,17 +39,32 @@ export async function renderConfirmationEmail(
   const cleanSiteUrl = params.siteUrl.replace(/\/+$/, "");
   const ticketUrl = `${cleanSiteUrl}/ticket/${encodeURIComponent(cleanCode)}`;
 
-  // Generate QR code PNG as base64 attachment
-  const qrDataUrl = await QRCode.toDataURL(cleanCode, {
-    errorCorrectionLevel: "M",
-    margin: 2,
-    width: 320,
-    color: {
-      dark: "#0b1329",
-      light: "#ffffff",
-    },
-  });
-  const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, "");
+  let attachments: EmailAttachment[] = [];
+  let attachmentWarning: string | undefined;
+  try {
+    const qrDataUrl = await QRCode.toDataURL(cleanCode, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      width: 320,
+      color: {
+        dark: "#0b1329",
+        light: "#ffffff",
+      },
+    });
+    const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, "");
+    if (!qrBase64) throw new Error("QR PNG content was empty");
+    attachments = [
+      {
+        filename: "ebif-ticket-qr.png",
+        content: qrBase64,
+        content_type: "image/png",
+      },
+    ];
+  } catch (error) {
+    const name = error instanceof Error ? error.name || "QrGenerationError" : "QrGenerationError";
+    const message = error instanceof Error ? error.message : String(error);
+    attachmentWarning = name + ": " + message.slice(0, 300);
+  }
 
   const subject = `Your registration is confirmed — ${event.name}`;
 
@@ -69,7 +85,7 @@ VIEW YOUR TICKET:
 ${ticketUrl}
 
 IMPORTANT CHECK-IN INSTRUCTIONS:
-Please bring your QR code (attached to this email or accessible via the ticket link above) and a valid government ID or business card to the registration desk at the venue.
+Please bring your QR code (attached to this email when available, or accessible via the ticket link above) and a valid government ID or business card to the registration desk at the venue.
 
 CONTACT & INQUIRIES:
 Phone: ${contactPhones}
@@ -145,7 +161,7 @@ Ethiopian Business & Investment Forum Organizing Committee
               <!-- Notice Box -->
               <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 4px; margin-bottom: 28px;">
                 <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #1e40af;">
-                  <strong>Please bring your QR code</strong> (attached as an image to this email or accessible online) and a valid ID or business card to the entrance desk for rapid check-in.
+                  <strong>Please bring your QR code</strong> (attached as an image when available, or accessible online) and a valid ID or business card to the entrance desk for rapid check-in.
                 </p>
               </div>
 
@@ -182,12 +198,7 @@ Ethiopian Business & Investment Forum Organizing Committee
     subject,
     html,
     text,
-    attachments: [
-      {
-        filename: "ebif-ticket-qr.png",
-        content: qrBase64,
-        content_type: "image/png",
-      },
-    ],
+    attachments,
+    attachmentWarning,
   };
 }
