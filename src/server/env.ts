@@ -24,9 +24,43 @@ export const serverEnvSchema = z.object({
 
 export type ServerEnvConfig = z.infer<typeof serverEnvSchema>;
 
+export type ServerEnvPresence = Record<
+  "RESEND_API_KEY" | "EMAIL_FROM" | "EMAIL_REPLY_TO" | "SITE_URL",
+  boolean
+>;
+
+export interface ParsedEmailAddress {
+  address: string;
+  domain: string;
+  displayName: string;
+}
+
+export function stripSurroundingQuotes(value: string): string {
+  const trimmed = value.trim();
+  if (
+    trimmed.length >= 2 &&
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+export function parseEmailAddress(value: string): ParsedEmailAddress | null {
+  const normalized = stripSurroundingQuotes(value);
+  const match = normalized.match(/^(?:(.+?)\s+)?<([^<>\s@]+@[^<>\s@]+)>$/);
+  const address = match?.[2] || normalized;
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return null;
+  return {
+    address,
+    domain: address.slice(address.lastIndexOf("@") + 1).toLowerCase(),
+    displayName: match?.[1]?.trim() || "",
+  };
+}
+
 function isValidEmailSetting(value: string): boolean {
-  const address = value.match(/<([^<>]+)>$/)?.[1] || value;
-  return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address.trim());
+  return parseEmailAddress(value) !== null;
 }
 
 function readLocalDotEnv(): Record<string, string> {
@@ -41,10 +75,7 @@ function readLocalDotEnv(): Record<string, string> {
           const eqIdx = trimmed.indexOf("=");
           if (eqIdx !== -1) {
             const key = trimmed.slice(0, eqIdx).trim();
-            const val = trimmed
-              .slice(eqIdx + 1)
-              .trim()
-              .replace(/^["']|["']$/g, "");
+            const val = stripSurroundingQuotes(trimmed.slice(eqIdx + 1));
             result[key] = val;
           }
         }
@@ -57,6 +88,33 @@ function readLocalDotEnv(): Record<string, string> {
   return {};
 }
 
+export function getServerEnvPresence(
+  raw?: Record<string, string | undefined>,
+): ServerEnvPresence {
+  const localEnv = readLocalDotEnv();
+  const processEnv = typeof process === "undefined" ? {} : process.env;
+  const runtimeEnv: Record<string, string | undefined> = {};
+  const keys: Array<keyof ServerEnvPresence> = [
+    "RESEND_API_KEY",
+    "EMAIL_FROM",
+    "EMAIL_REPLY_TO",
+    "SITE_URL",
+  ];
+  for (const key of keys) {
+    const value = raw?.[key];
+    if (typeof value === "string" && value.trim()) {
+      runtimeEnv[key] = stripSurroundingQuotes(value);
+    }
+  }
+  const source = Object.keys(runtimeEnv).length > 0 ? runtimeEnv : { ...localEnv, ...processEnv };
+  return {
+    RESEND_API_KEY: Boolean(source.RESEND_API_KEY?.trim()),
+    EMAIL_FROM: Boolean(source.EMAIL_FROM?.trim()),
+    EMAIL_REPLY_TO: Boolean(source.EMAIL_REPLY_TO?.trim()),
+    SITE_URL: Boolean(source.SITE_URL?.trim()),
+  };
+}
+
 /**
  * Validates and normalizes server environment variables.
  * In development / Node, dynamically reads from .env and process.env.
@@ -65,18 +123,18 @@ function readLocalDotEnv(): Record<string, string> {
 export function getServerEnv(raw?: Record<string, string | undefined>): ServerEnvConfig {
   const localEnv = readLocalDotEnv();
   const processEnv = typeof process === "undefined" ? {} : process.env;
-  const merged: Record<string, string | undefined> = {
-    ...localEnv,
-    ...processEnv,
-  };
+  const runtimeEnv: Record<string, string | undefined> = {};
 
   if (raw && typeof raw === "object") {
     for (const [key, val] of Object.entries(raw)) {
-      if (val !== undefined && val !== "") {
-        merged[key] = val;
+      if (typeof val === "string" && val !== "") {
+        runtimeEnv[key] = stripSurroundingQuotes(val);
       }
     }
   }
+
+  const merged: Record<string, string | undefined> =
+    Object.keys(runtimeEnv).length > 0 ? runtimeEnv : { ...localEnv, ...processEnv };
 
   const result = serverEnvSchema.safeParse(merged);
   if (!result.success) {
@@ -88,10 +146,10 @@ export function getServerEnv(raw?: Record<string, string | undefined>): ServerEn
       TRUSTED_ORIGINS: merged.TRUSTED_ORIGINS,
       RESEND_API_KEY: merged.RESEND_API_KEY,
       EMAIL_FROM: isValidEmailSetting(merged.EMAIL_FROM || "")
-        ? merged.EMAIL_FROM!
+        ? stripSurroundingQuotes(merged.EMAIL_FROM!)
         : "Ethiopian Business & Investment Forum <events@nexabusinessgroup.com>",
       EMAIL_REPLY_TO: isValidEmailSetting(merged.EMAIL_REPLY_TO || "")
-        ? merged.EMAIL_REPLY_TO!
+        ? stripSurroundingQuotes(merged.EMAIL_REPLY_TO!)
         : "events@nexabusinessgroup.com",
       SITE_URL: /^https?:\/\//.test(merged.SITE_URL || "")
         ? merged.SITE_URL!

@@ -160,12 +160,13 @@ registrationsRouter.post("/", async (c) => {
 
     // Non-blocking confirmation email dispatch
     const serverEnv = getServerEnv(c.env as Record<string, string | undefined>);
-    const emailProvider = new ResendEmailProvider({
+    const emailEnv = {
       apiKey: serverEnv.RESEND_API_KEY,
       from: serverEnv.EMAIL_FROM,
       replyTo: serverEnv.EMAIL_REPLY_TO,
       environment: serverEnv.NODE_ENV,
-    });
+    };
+    const emailProvider = new ResendEmailProvider(emailEnv);
 
     const dbUrl = (c.env as Record<string, string | undefined>)?.DATABASE_URL || process.env.DATABASE_URL;
     const emailPromise = (async () => {
@@ -182,15 +183,15 @@ registrationsRouter.post("/", async (c) => {
       try {
         await sendConfirmationEmail({
           db: emailDb,
-          attendee: {
-            id: regId,
-            fullName,
-            email,
-            organization,
-            ticketCode,
+          registrationId: regId,
+          env: {
+            RESEND_API_KEY: emailEnv.apiKey,
+            EMAIL_FROM: emailEnv.from,
+            EMAIL_REPLY_TO: emailEnv.replyTo || "",
+            SITE_URL: serverEnv.SITE_URL,
+            NODE_ENV: emailEnv.environment,
           },
           provider: emailProvider,
-          siteUrl: serverEnv.SITE_URL,
         });
       } finally {
         if (emailCtx) {

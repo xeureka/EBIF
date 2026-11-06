@@ -20,7 +20,8 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:backfill-tickets": "tsx scripts/backfill-ticket-codes.ts",
     "db:seed": "tsx scripts/seed.ts",
-    "email:test": "tsx scripts/email-test.ts"
+    "email:test": "tsx scripts/email-test.ts",
+    "email:diagnose": "tsx scripts/email-diagnose.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.0",

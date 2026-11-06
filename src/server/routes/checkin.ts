@@ -291,6 +291,7 @@ checkInRouter.post("/walk-in", async (c) => {
     apiKey: serverEnv.RESEND_API_KEY,
     from: serverEnv.EMAIL_FROM,
     replyTo: serverEnv.EMAIL_REPLY_TO,
+    environment: serverEnv.NODE_ENV,
   });
 
   try {
@@ -301,7 +302,13 @@ checkInRouter.post("/walk-in", async (c) => {
         ...parsed.data,
         day: parsed.data.day as 1 | 2,
       },
-      serverEnv.SITE_URL,
+      {
+        RESEND_API_KEY: serverEnv.RESEND_API_KEY,
+        EMAIL_FROM: serverEnv.EMAIL_FROM,
+        EMAIL_REPLY_TO: serverEnv.EMAIL_REPLY_TO,
+        SITE_URL: serverEnv.SITE_URL,
+        NODE_ENV: serverEnv.NODE_ENV,
+      },
       emailProvider,
     );
 

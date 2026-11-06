@@ -17,6 +17,7 @@ export interface SendEmailResult {
   ok: boolean;
   providerId?: string;
   error?: string;
+  errorName?: string;
 }
 
 export interface EmailProvider {
