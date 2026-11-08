@@ -61,7 +61,6 @@ export function AttendeesPage() {
     internationalPartner: 0,
     checkedInToday: 0,
   });
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   // Filter state
@@ -77,7 +76,6 @@ export function AttendeesPage() {
   const [resendingId, setResendingId] = useState<string | null>(null);
 
   const fetchAttendeesData = useCallback(async () => {
-    setLoading(true);
     setError("");
 
     try {
@@ -98,8 +96,6 @@ export function AttendeesPage() {
       setStats(res.stats);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load attendees.");
-    } finally {
-      setLoading(false);
     }
   }, [searchQuery, typeFilter, dateFilter, sortAscending, checkInStatusFilter, checkInDayFilter, currentPage]);
 
@@ -152,8 +148,14 @@ export function AttendeesPage() {
     setResendingId(attendee.id);
     try {
       await resendAttendeeEmail(attendee.id);
+      setAttendees((currentAttendees) =>
+        currentAttendees.map((currentAttendee) =>
+          currentAttendee.id === attendee.id
+            ? { ...currentAttendee, emailStatus: "sent", emailError: null }
+            : currentAttendee,
+        ),
+      );
       toast.success(`Confirmation email resent to ${attendee.email}`);
-      await fetchAttendeesData();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to resend confirmation email");
     } finally {
@@ -411,11 +413,7 @@ export function AttendeesPage() {
       )}
 
       {/* Attendees Table */}
-      {loading ? (
-        <div className="border border-line bg-ink p-12 text-center text-sm text-mute">
-          Loading attendees...
-        </div>
-      ) : !error ? (
+      {!error ? (
         <div>
           <DataTable
             columns={columns}

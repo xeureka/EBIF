@@ -1,0 +1,28 @@
+id,registration_id,type,status,provider_id,error,created_at
+0df9787f-06e6-471d-954f-4beb2061b2d1,49c2e8df-07d9-4067-8432-56b53de6a6be,confirmation,failed,,You need to specify a canvas element,2026-11-05T04:52:06.555Z
+2307f7c5-ba5f-4687-909a-be5e09933dde,80a92706-9e76-437e-8d83-e866db679858,confirmation,failed,,You need to specify a canvas element,2026-11-04T19:49:00.724Z
+26384b88-4a5b-4a8b-b57d-7226d5d424a2,01c98e28-6fd9-4319-af48-5d95298943ae,confirmation,failed,,resend_request: Missing RESEND_API_KEY,2026-11-06T05:25:53.645Z
+273af11a-805f-4653-9423-87cccf953ee7,6e82f5e0-4d02-4202-afaf-bec651643f26,confirmation,failed,,You need to specify a canvas element,2026-11-05T06:51:24.397Z
+37d95c30-7875-48cb-9da5-bfb192510067,f43b8e28-e44a-4a77-b588-333621ff95a4,confirmation,failed,,You need to specify a canvas element,2026-11-04T16:05:41.515Z
+4085e31b-a2b2-46c5-b85c-d3269b3d24e2,f5f4e302-953d-4f51-a9c1-83ec3d1a1b20,confirmation,failed,,"You can only send testing emails to your own email address (ahaduteklemariam@gmail.com). To send emails to other recipients, please verify a domain at resend.com/domains, and change the `from` address to an email using this domain.",2026-11-04T14:30:51.712Z
+4a099300-c4c7-45c1-baac-b43ac09e3ac2,01c98e28-6fd9-4319-af48-5d95298943ae,confirmation,failed,,resend_request: Missing RESEND_API_KEY,2026-11-06T05:17:37.871Z
+4af6c4a6-9779-4885-8ed0-a758b05d26c9,01c98e28-6fd9-4319-af48-5d95298943ae,confirmation,failed,,resend_request: Missing RESEND_API_KEY,2026-11-06T05:20:13.894Z
+65f9c097-ffb5-4114-8d11-a35e411f8a74,01c98e28-6fd9-4319-af48-5d95298943ae,confirmation,failed,,Error,2026-11-06T04:05:19.619Z
+7433dba3-8b7e-403b-8f15-03db2aebb362,2b7a68df-5184-43d2-acf9-7e92b29d14aa,confirmation,failed,,resend_request: Missing RESEND_API_KEY,2026-11-06T05:33:01.649Z
+7c37bb55-ac6b-404a-b559-5d28a600a165,01c98e28-6fd9-4319-af48-5d95298943ae,confirmation,failed,,Error,2026-11-06T04:05:10.871Z
+7edf7126-439e-4760-996d-e2930da25045,1a7accce-3bf2-406f-8065-7530cea9c740,confirmation,failed,,You need to specify a canvas element,2026-11-05T09:11:11.005Z
+8c50b83a-9edb-4b67-ab74-252464de4131,df0527b8-b8fb-451a-91fc-b4dc84d6d3b6,confirmation,failed,,You need to specify a canvas element,2026-11-05T12:10:31.529Z
+941be2e8-c024-48e5-9f8d-ed9b327406aa,01c98e28-6fd9-4319-af48-5d95298943ae,confirmation,failed,,Error,2026-11-06T04:34:42.641Z
+a351bb38-c87f-4732-aefb-838c63550d76,c6e0ba7b-4d7b-4a89-8048-238b5e200308,confirmation,failed,,You need to specify a canvas element,2026-11-05T04:57:35.986Z
+a4819d7f-5294-4bf2-a4d9-64ef58cd1cff,eb502f1a-b7fa-475b-8e03-d07dda6dffc5,confirmation,failed,,You need to specify a canvas element,2026-11-05T05:18:28.697Z
+a7b12a66-1251-4b0b-9ed4-0cb37e2fe242,1ed41c1c-e445-46ce-a94b-6292bd15b5a3,confirmation,failed,,You need to specify a canvas element,2026-11-05T16:39:10.637Z
+b03431f0-5116-4f80-8d3a-ae97a6cf8c70,01c98e28-6fd9-4319-af48-5d95298943ae,confirmation,failed,,resend_request: Missing RESEND_API_KEY,2026-11-06T05:27:13.964Z
+c496fdc1-6000-48ce-8734-616d79d8429c,ccf5f272-345f-4ed3-8841-4da6381be863,confirmation,failed,,You need to specify a canvas element,2026-11-05T01:06:24.460Z
+cfdc7393-f4c1-485b-95d8-4e5ced0a9e58,97070f7b-ba70-4652-9eaa-ae1528168e3d,confirmation,failed,,resend_request: Missing RESEND_API_KEY,2026-11-06T05:28:23.722Z
+d2b3f8b8-1e94-4d3a-9e1a-5e6ee363995f,01c98e28-6fd9-4319-af48-5d95298943ae,confirmation,failed,,Error,2026-11-06T04:02:44.867Z
+dc62b721-fcee-4f4d-959d-72e6c3cd136c,01c98e28-6fd9-4319-af48-5d95298943ae,confirmation,failed,,Error,2026-11-06T04:11:07.167Z
+dd9d0370-a99e-41d2-83fb-2a5972393dd4,7a070590-7014-4793-bf2d-4772a4dfd240,confirmation,sent,dev-skipped,,2026-11-04T14:23:08.743Z
+df609e68-af5f-4441-a3d7-e94b655348b6,2b7a68df-5184-43d2-acf9-7e92b29d14aa,confirmation,failed,,resend_request: Missing RESEND_API_KEY,2026-11-06T05:34:01.836Z
+ed2850b8-e478-43a1-a420-35ff7f52db53,94b95c10-5d56-4b12-9b32-65fdacb623b7,confirmation,sent,01a1a6fa-bb62-7589-97d0-3492beea795b,,2026-11-04T14:33:32.548Z
+ee4816bb-074b-4da0-812f-8ca11e311055,1e3e5c86-1f26-415e-a6f1-9403671e5f29,confirmation,failed,,You need to specify a canvas element,2026-11-05T07:41:38.913Z
+f656b33c-b71b-456f-a3dc-9d56423cd816,01c98e28-6fd9-4319-af48-5d95298943ae,confirmation,failed,,Error,2026-11-06T04:14:26.747Z
