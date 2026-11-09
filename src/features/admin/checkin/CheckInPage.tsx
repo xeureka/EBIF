@@ -1,15 +1,8 @@
-import { useState, useEffect, useCallback, type FormEvent } from "react";
-import {
-  Calendar,
-  CheckCircle2,
-  Search,
-  UserPlus,
-  QrCode,
-  RotateCcw,
-  Loader2,
-} from "lucide-react";
+import { useState, useEffect, useCallback, useRef, type FormEvent } from "react";
+import { Calendar, CheckCircle2, Search, UserPlus, QrCode, RotateCcw, Loader2 } from "lucide-react";
 import { getCurrentEventDay } from "@/data/event";
 import {
+  ApiError,
   checkInScan,
   checkInByRegistration,
   undoCheckIn,
@@ -22,6 +15,7 @@ import type {
   CheckInSearchAttendeeItem,
   CheckInResponse,
 } from "@/shared/types";
+import { InvalidQrPayloadError, parseTicketFromQr } from "@/shared/ticket-qr";
 import { QrScanner } from "./QrScanner";
 import { CheckInResultCard, type ResultType } from "./CheckInResultCard";
 import { WalkInModal } from "./WalkInModal";
@@ -35,8 +29,10 @@ export function CheckInPage() {
     status: ResultType;
     registration?: CheckInRegistrationDetails;
     scannedCode?: string;
+    message?: string;
   } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const actionLoadingRef = useRef(false);
   const [undoing, setUndoing] = useState(false);
 
   // Manual code input
@@ -65,34 +61,86 @@ export function CheckInPage() {
     fetchStats(selectedDay);
   }, [selectedDay, fetchStats]);
 
-  // Execute scan check-in
-  const handleScanCode = async (code: string) => {
-    if (actionLoading) return;
-    setActionLoading(true);
+  // Shared verification used by camera scans, uploaded photos, and manual
+  // entry. Parsing and error mapping live here so every entry path behaves
+  // the same. Returns true when the ticket was processed by the server.
+  const verifyTicket = useCallback(
+    async (rawText: string, method: "qr" | "manual"): Promise<boolean> => {
+      if (actionLoadingRef.current) return false;
 
-    try {
-      const res = await checkInScan({
-        code,
-        day: selectedDay,
-        method: "qr",
-      });
+      const raw = rawText.trim();
+      if (!raw) return false;
 
-      setResultState({
-        status: res.status,
-        registration: res.registration,
-        scannedCode: code,
-      });
+      let code: string;
+      try {
+        code = parseTicketFromQr(raw);
+      } catch (error) {
+        if (error instanceof InvalidQrPayloadError) {
+          setResultState({
+            status: "invalid_qr",
+            scannedCode: raw,
+          });
+        } else {
+          setResultState({
+            status: "error",
+            scannedCode: raw,
+            message: "The scanned code could not be read. Please try again.",
+          });
+        }
+        return false;
+      }
 
-      fetchStats(selectedDay);
-    } catch {
-      setResultState({
-        status: "not_found",
-        scannedCode: code,
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
+      actionLoadingRef.current = true;
+      setActionLoading(true);
+
+      try {
+        const res = await checkInScan({
+          code,
+          day: selectedDay,
+          method,
+        });
+
+        setResultState({
+          status: res.status,
+          registration: res.registration,
+          scannedCode: code,
+        });
+
+        fetchStats(selectedDay);
+        return true;
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "NOT_FOUND") {
+          setResultState({
+            status: "not_found",
+            scannedCode: code,
+          });
+        } else {
+          const message =
+            error instanceof ApiError
+              ? error.message
+              : "Could not reach the check-in service. Check your connection and try again.";
+          setResultState({
+            status: "error",
+            scannedCode: code,
+            message,
+          });
+        }
+        return false;
+      } finally {
+        actionLoadingRef.current = false;
+        setActionLoading(false);
+      }
+    },
+    [selectedDay, fetchStats],
+  );
+
+  // Execute scan check-in from the camera or an uploaded photo
+  const handleScanCode = useCallback(
+    (rawText: string) => {
+      void verifyTicket(rawText, "qr");
+    },
+    [verifyTicket],
+  );
 
   // Submit manual code
   const handleManualSubmit = async (e: FormEvent) => {
@@ -102,25 +150,8 @@ export function CheckInPage() {
 
     setManualSubmitting(true);
     try {
-      const res = await checkInScan({
-        code: clean,
-        day: selectedDay,
-        method: "manual",
-      });
-
-      setResultState({
-        status: res.status,
-        registration: res.registration,
-        scannedCode: clean,
-      });
-
-      setManualCode("");
-      fetchStats(selectedDay);
-    } catch {
-      setResultState({
-        status: "not_found",
-        scannedCode: clean,
-      });
+      const processed = await verifyTicket(clean, "manual");
+      if (processed) setManualCode("");
     } finally {
       setManualSubmitting(false);
     }
@@ -151,6 +182,8 @@ export function CheckInPage() {
 
   // Check in by search result row
   const handleCheckInByRow = async (attendee: CheckInSearchAttendeeItem) => {
+    if (actionLoadingRef.current) return;
+    actionLoadingRef.current = true;
     setActionLoading(true);
     try {
       const res = await checkInByRegistration({
@@ -181,6 +214,7 @@ export function CheckInPage() {
     } catch (err) {
       console.error("Row check-in error:", err);
     } finally {
+      actionLoadingRef.current = false;
       setActionLoading(false);
     }
   };
@@ -229,9 +263,7 @@ export function CheckInPage() {
   };
 
   const percentCheckedIn =
-    stats && stats.total > 0
-      ? Math.round((stats.checkedIn / stats.total) * 100)
-      : 0;
+    stats && stats.total > 0 ? Math.round((stats.checkedIn / stats.total) * 100) : 0;
 
   return (
     <div className="space-y-6 pb-12 max-w-4xl mx-auto">
@@ -248,9 +280,7 @@ export function CheckInPage() {
               type="button"
               onClick={() => setSelectedDay(1)}
               className={`px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] transition-colors cursor-pointer ${
-                selectedDay === 1
-                  ? "bg-gold text-ink font-bold"
-                  : "text-mute hover:text-cream"
+                selectedDay === 1 ? "bg-gold text-ink font-bold" : "text-mute hover:text-cream"
               }`}
             >
               Day 1 (Nov 28)
@@ -259,9 +289,7 @@ export function CheckInPage() {
               type="button"
               onClick={() => setSelectedDay(2)}
               className={`px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] transition-colors cursor-pointer ${
-                selectedDay === 2
-                  ? "bg-gold text-ink font-bold"
-                  : "text-mute hover:text-cream"
+                selectedDay === 2 ? "bg-gold text-ink font-bold" : "text-mute hover:text-cream"
               }`}
             >
               Day 2 (Nov 29)
@@ -292,9 +320,7 @@ export function CheckInPage() {
               <span>{stats?.total ?? 0}</span>
             </p>
           </div>
-          <span className="text-lg font-bold font-mono text-cream">
-            {percentCheckedIn}%
-          </span>
+          <span className="text-lg font-bold font-mono text-cream">{percentCheckedIn}%</span>
         </div>
 
         {/* Thin Gold Progress Bar */}
@@ -329,6 +355,7 @@ export function CheckInPage() {
           status={resultState.status}
           registration={resultState.registration}
           scannedCode={resultState.scannedCode}
+          message={resultState.message}
           onUndo={resultState.status === "checked_in" ? handleUndo : undefined}
           onClear={() => setResultState(null)}
           undoing={undoing}
@@ -404,9 +431,7 @@ export function CheckInPage() {
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-semibold text-xs text-cream truncate">
-                      {attendee.fullName}
-                    </p>
+                    <p className="font-semibold text-xs text-cream truncate">{attendee.fullName}</p>
                     <span className="text-[10px] px-1.5 py-0.2 border border-gold/30 bg-gold/10 text-gold shrink-0">
                       {attendee.attendeeType}
                     </span>

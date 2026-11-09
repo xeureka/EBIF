@@ -1,22 +1,37 @@
 import { useEffect } from "react";
-import { CheckCircle2, AlertCircle, XCircle, RotateCcw, ArrowRight } from "lucide-react";
+import {
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  XCircle,
+  QrCode,
+  RotateCcw,
+  ArrowRight,
+} from "lucide-react";
 import type { CheckInRegistrationDetails } from "@/shared/types";
 
-export type ResultType = "checked_in" | "already_checked_in" | "not_found";
+export type ResultType = "checked_in" | "already_checked_in" | "not_found" | "invalid_qr" | "error";
 
 interface CheckInResultCardProps {
   status: ResultType;
   registration?: CheckInRegistrationDetails;
   scannedCode?: string;
+  message?: string;
   onUndo?: (registrationId: string) => Promise<void> | void;
   onClear: () => void;
   undoing?: boolean;
+}
+
+function truncatePayload(value?: string): string {
+  if (!value) return "—";
+  return value.length > 120 ? `${value.slice(0, 117)}…` : value;
 }
 
 export function CheckInResultCard({
   status,
   registration,
   scannedCode,
+  message,
   onUndo,
   onClear,
   undoing = false,
@@ -158,9 +173,89 @@ export function CheckInResultCard({
           <p className="text-[11px] text-mute font-mono">
             Ticket: <span className="text-cream">{registration.ticketCode}</span>
           </p>
-          <span className="text-[11px] text-amber-400/90 font-medium">
-            Record was not modified
-          </span>
+          <span className="text-[11px] text-amber-400/90 font-medium">Record was not modified</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "invalid_qr") {
+    return (
+      <div className="border-2 border-rose/70 bg-rose-950/40 p-5 rounded-none animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-rose/20 text-rose">
+              <QrCode size={24} />
+            </div>
+            <div>
+              <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] bg-rose/20 text-rose border border-rose/40">
+                Not a Ticket QR
+              </span>
+              <h2 className="mt-1 text-lg sm:text-xl font-bold text-cream">Unrecognised QR Code</h2>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClear}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] bg-ink-2 border border-line text-cream hover:border-gold transition-colors cursor-pointer"
+          >
+            <span>Next</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
+
+        <div className="mt-4 border-t border-rose/20 pt-3 text-xs text-mute">
+          <p className="mb-2">
+            This QR code does not contain a forum ticket number. Ask the attendee for their ticket
+            QR, or enter the code manually below.
+          </p>
+          <p className="mb-1 text-[10px] uppercase tracking-[0.14em] text-mute">Scanned content</p>
+          <p className="break-all font-mono text-[11px] text-cream">
+            {truncatePayload(scannedCode)}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="border-2 border-amber-500/70 bg-amber-950/40 p-5 rounded-none animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-500/20 text-amber-400">
+              <AlertTriangle size={24} />
+            </div>
+            <div>
+              <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                Check-in Error
+              </span>
+              <h2 className="mt-1 text-lg sm:text-xl font-bold text-cream">
+                Could Not Complete Check-in
+              </h2>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClear}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] bg-ink-2 border border-line text-cream hover:border-gold transition-colors cursor-pointer"
+          >
+            <span>Dismiss</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
+
+        <div className="mt-4 border-t border-amber-500/20 pt-3 text-xs text-mute">
+          <p className="mb-2 text-cream">
+            {message || "The check-in request failed. Please try again."}
+          </p>
+          <p className="mb-2">
+            The attendee has not been checked in. Verify the connection and scan the same ticket
+            again.
+          </p>
+          <p className="font-mono text-[11px]">
+            Ticket: <span className="text-cream">{scannedCode || "—"}</span>
+          </p>
         </div>
       </div>
     );
@@ -178,9 +273,7 @@ export function CheckInResultCard({
             <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] bg-rose/20 text-rose border border-rose/40">
               Ticket Not Found
             </span>
-            <h2 className="mt-1 text-lg sm:text-xl font-bold text-cream">
-              Unknown Ticket Code
-            </h2>
+            <h2 className="mt-1 text-lg sm:text-xl font-bold text-cream">Unknown Ticket Code</h2>
           </div>
         </div>
         <button
@@ -199,7 +292,8 @@ export function CheckInResultCard({
           <strong className="font-mono text-cream">{scannedCode || "—"}</strong>
         </p>
         <p className="text-[11px]">
-          Please ensure the code is correct, or search for the attendee below using their name, phone number, or email address.
+          Please ensure the code is correct, or search for the attendee below using their name,
+          phone number, or email address.
         </p>
       </div>
     </div>
