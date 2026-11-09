@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as EvisaRouteImport } from './routes/evisa'
+import { Route as QrRouteImport } from './routes/qr'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminSplatRouteImport } from './routes/admin/$'
 import { Route as AdminAdminsRouteImport } from './routes/admin/admins'
@@ -33,6 +35,16 @@ const AdminRoute = AdminRouteImport.update({
 const EvisaRoute = EvisaRouteImport.update({
   id: '/evisa',
   path: '/evisa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QrRoute = QrRouteImport.update({
+  id: '/qr',
+  path: '/qr',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -75,6 +87,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/evisa': typeof EvisaRoute
+  '/qr': typeof QrRoute
+  '/register': typeof RegisterRoute
   '/admin/$': typeof AdminSplatRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/attendees': typeof AdminAttendeesRoute
@@ -86,6 +100,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/evisa': typeof EvisaRoute
+  '/qr': typeof QrRoute
+  '/register': typeof RegisterRoute
   '/admin/$': typeof AdminSplatRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/attendees': typeof AdminAttendeesRoute
@@ -99,6 +115,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/evisa': typeof EvisaRoute
+  '/qr': typeof QrRoute
+  '/register': typeof RegisterRoute
   '/admin/$': typeof AdminSplatRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/attendees': typeof AdminAttendeesRoute
@@ -113,6 +131,8 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/evisa'
+    | '/qr'
+    | '/register'
     | '/admin/$'
     | '/admin/admins'
     | '/admin/attendees'
@@ -124,6 +144,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/evisa'
+    | '/qr'
+    | '/register'
     | '/admin/$'
     | '/admin/admins'
     | '/admin/attendees'
@@ -136,6 +158,8 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/evisa'
+    | '/qr'
+    | '/register'
     | '/admin/$'
     | '/admin/admins'
     | '/admin/attendees'
@@ -149,6 +173,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   EvisaRoute: typeof EvisaRoute
+  QrRoute: typeof QrRoute
+  RegisterRoute: typeof RegisterRoute
   TicketCodeRoute: typeof TicketCodeRoute
 }
 
@@ -173,6 +199,20 @@ declare module '@tanstack/react-router' {
       path: '/evisa'
       fullPath: '/evisa'
       preLoaderRoute: typeof EvisaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/qr': {
+      id: '/qr'
+      path: '/qr'
+      fullPath: '/qr'
+      preLoaderRoute: typeof QrRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -251,6 +291,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   EvisaRoute: EvisaRoute,
+  QrRoute: QrRoute,
+  RegisterRoute: RegisterRoute,
   TicketCodeRoute: TicketCodeRoute,
 }
 export const routeTree = rootRouteImport

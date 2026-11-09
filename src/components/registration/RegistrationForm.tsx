@@ -1,0 +1,625 @@
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
+import {
+  Building2,
+  CheckCircle2,
+  Download,
+  Globe2,
+  Landmark,
+  TrendingUp,
+  type LucideIcon,
+} from "lucide-react";
+import QRCode from "qrcode";
+import { event } from "@/data/event";
+import {
+  COUNTRY_PHONE_CODES,
+  DEFAULT_COUNTRY_PHONE_CODE,
+} from "@/data/countryPhoneCodes";
+import {
+  submitRegistration,
+  type AttendeeType,
+  type RegistrationPayload,
+} from "@/lib/registration";
+
+type FormState = {
+  countryCode: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  organization: string;
+  jobTitle: string;
+  attendeeType: AttendeeType | "";
+  consent: boolean;
+};
+
+type FieldName = keyof FormState;
+
+const REQUIRED_FIELDS: FieldName[] = [
+  "fullName",
+  "email",
+  "phone",
+  "organization",
+  "jobTitle",
+  "attendeeType",
+  "consent",
+];
+
+const EMPTY_FORM: FormState = {
+  countryCode: DEFAULT_COUNTRY_PHONE_CODE,
+  fullName: "",
+  email: "",
+  phone: "",
+  organization: "",
+  jobTitle: "",
+  attendeeType: "",
+  consent: false,
+};
+
+const ATTENDEE_TYPES: {
+  value: AttendeeType;
+  title: string;
+  subtitle: string;
+  icon: LucideIcon;
+}[] = [
+  {
+    value: "Company",
+    title: "Company",
+    subtitle: "Represent a business",
+    icon: Building2,
+  },
+  {
+    value: "Investor",
+    title: "Investor",
+    subtitle: "Seeking opportunities",
+    icon: TrendingUp,
+  },
+  {
+    value: "Government Institution",
+    title: "Government Institution",
+    subtitle: "Public sector",
+    icon: Landmark,
+  },
+  {
+    value: "International Partner",
+    title: "International Partner",
+    subtitle: "Global collaboration",
+    icon: Globe2,
+  },
+];
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function selectedCountry(countryCode: string) {
+  return (
+    COUNTRY_PHONE_CODES.find((country) => country.code === countryCode) ||
+    COUNTRY_PHONE_CODES.find((country) => country.code === DEFAULT_COUNTRY_PHONE_CODE)!
+  );
+}
+
+function phoneLengthLimits(countryCode: string) {
+  const dialDigits = selectedCountry(countryCode).dialCode.replace(/\D/g, "").length;
+  return {
+    min: Math.max(4, 7 - dialDigits),
+    max: 15 - dialDigits,
+  };
+}
+
+function validateField(name: FieldName, values: FormState): string {
+  switch (name) {
+    case "fullName":
+      return values.fullName.trim() ? "" : "Full name is required.";
+    case "email":
+      if (!values.email.trim()) return "Email is required.";
+      return EMAIL_PATTERN.test(values.email.trim()) ? "" : "Enter a valid email address.";
+    case "phone":
+      if (!values.phone) return "Phone number is required.";
+      {
+        const limits = phoneLengthLimits(values.countryCode);
+        if (values.phone.length < limits.min || values.phone.length > limits.max) {
+          return `Enter ${limits.min}–${limits.max} digits for ${selectedCountry(values.countryCode).name}.`;
+        }
+        return "";
+      }
+    case "organization":
+      return values.organization.trim() ? "" : "Organization is required.";
+    case "jobTitle":
+      return values.jobTitle.trim() ? "" : "Job title is required.";
+    case "attendeeType":
+      return values.attendeeType ? "" : "Select an attendee type.";
+    case "consent":
+      return values.consent ? "" : "Please confirm you agree to be contacted.";
+    case "countryCode":
+      return "";
+  }
+}
+
+function validateAll(values: FormState): Partial<Record<FieldName, string>> {
+  return REQUIRED_FIELDS.reduce<Partial<Record<FieldName, string>>>((errors, field) => {
+    const message = validateField(field, values);
+    if (message) errors[field] = message;
+    return errors;
+  }, {});
+}
+
+function SectionHeading({ number, title }: { number: string; title: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="grid h-8 w-8 place-items-center rounded-full border border-gold text-[11px] font-bold text-gold">
+        {number}
+      </span>
+      <h3 className="text-[12px] font-bold uppercase tracking-[0.18em]">{title}</h3>
+    </div>
+  );
+}
+
+function FieldLabel({
+  htmlFor,
+  label,
+  required = true,
+}: {
+  htmlFor: string;
+  label: string;
+  required?: boolean;
+}) {
+  return (
+    <label
+      htmlFor={htmlFor}
+      className="mb-1.5 block text-[11px] uppercase tracking-[0.18em] text-mute"
+    >
+      {label}
+      {required && <span className="ml-0.5 text-rose">*</span>}
+    </label>
+  );
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="mt-1.5 text-xs text-rose">{message}</p>;
+}
+
+function inputClass(hasError: boolean) {
+  return `h-11 w-full border bg-ink px-3 text-sm text-cream outline-none transition-colors ${
+    hasError ? "border-rose" : "border-line focus:border-gold"
+  }`;
+}
+
+export function RegistrationForm({ onClose }: { onClose: () => void }) {
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [touched, setTouched] = useState<Partial<Record<FieldName, boolean>>>({});
+  const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [ticketCode, setTicketCode] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const completed = REQUIRED_FIELDS.filter((field) => !validateField(field, form)).length;
+  const canSubmit = completed === REQUIRED_FIELDS.length;
+
+  useEffect(() => {
+    if (!success) return;
+    const timer = window.setTimeout(() => {
+      containerRef.current
+        ?.querySelector<HTMLElement>("[data-success-close]")
+        ?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [success]);
+
+  function updateField<K extends FieldName>(name: K, value: FormState[K]) {
+    const next: FormState = { ...form, [name]: value };
+    setForm(next);
+    if (touched[name]) {
+      setErrors((current) => ({ ...current, [name]: validateField(name, next) }));
+    }
+    setSubmitError("");
+  }
+
+  function handleBlur(name: FieldName) {
+    setTouched((current) => ({ ...current, [name]: true }));
+    setErrors((current) => ({ ...current, [name]: validateField(name, form) }));
+  }
+
+  function handlePhoneChange(changeEvent: ChangeEvent<HTMLInputElement>) {
+    let digits = changeEvent.target.value.replace(/\D/g, "");
+    if (digits.startsWith("0")) digits = digits.slice(1);
+    digits = digits.slice(0, phoneLengthLimits(form.countryCode).max);
+    updateField("phone", digits);
+  }
+
+  function handleCountryChange(changeEvent: ChangeEvent<HTMLSelectElement>) {
+    const countryCode = changeEvent.target.value;
+    const next: FormState = { ...form, countryCode };
+    setForm(next);
+    if (touched.phone) {
+      setErrors((current) => ({ ...current, phone: validateField("phone", next) }));
+    }
+    setSubmitError("");
+  }
+
+  function selectAttendeeType(value: AttendeeType) {
+    updateField("attendeeType", value);
+    setTouched((current) => ({ ...current, attendeeType: true }));
+    setErrors((current) => ({ ...current, attendeeType: "" }));
+  }
+
+  function handleConsentChange(changeEvent: ChangeEvent<HTMLInputElement>) {
+    updateField("consent", changeEvent.target.checked);
+  }
+
+  async function handleSubmit(formEvent: FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault();
+    if (submitting) return;
+
+    const nextErrors = validateAll(form);
+    setErrors(nextErrors);
+    setTouched(
+      REQUIRED_FIELDS.reduce<Partial<Record<FieldName, boolean>>>((all, field) => {
+        all[field] = true;
+        return all;
+      }, {}),
+    );
+
+    const firstInvalid = REQUIRED_FIELDS.find((field) => nextErrors[field]);
+    if (firstInvalid) {
+      const target = containerRef.current?.querySelector<HTMLElement>(
+        `[data-field="${firstInvalid}"]`,
+      );
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      target?.focus();
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitError("");
+
+    try {
+      const attendeeType = form.attendeeType as AttendeeType;
+      const payload: RegistrationPayload = {
+        name: form.fullName.trim(),
+        organisation: form.organization.trim(),
+        email: form.email.trim(),
+        phone: `${selectedCountry(form.countryCode).dialCode}${form.phone}`,
+        jobTitle: form.jobTitle.trim(),
+        role: attendeeType,
+        attendeeType,
+        note: "",
+        consent: form.consent,
+      };
+      const res = await submitRegistration(payload);
+      const code = res?.ticketCode || "";
+      setTicketCode(code);
+
+      if (code) {
+        try {
+          const dataUrl = await QRCode.toDataURL(code, {
+            errorCorrectionLevel: "M",
+            margin: 2,
+            width: 280,
+            color: {
+              dark: "#0b1329",
+              light: "#ffffff",
+            },
+          });
+          setQrDataUrl(dataUrl);
+        } catch (qrErr) {
+          console.error("QR generation error:", qrErr);
+        }
+      }
+
+      setSuccess(true);
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error
+          ? err.message
+          : "We could not complete your registration. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleDownloadQr() {
+    if (!qrDataUrl) return;
+    const a = document.createElement("a");
+    a.href = qrDataUrl;
+    a.download = `EBIF-Ticket-${ticketCode || "QR"}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  return (
+    <div ref={containerRef} className="min-h-0 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
+      {success ? (
+        <div className="flex flex-col items-center justify-center px-4 py-8 text-center animate-in fade-in duration-200">
+          <CheckCircle2 size={44} strokeWidth={1.5} className="text-gold" />
+          <h2 id="registration-title" className="mt-3 font-display text-3xl sm:text-4xl text-cream">
+            You're registered
+          </h2>
+          <p className="mt-2 text-sm text-mute max-w-md">
+            We are sending a confirmation email with your QR code to{" "}
+            <span className="text-cream font-semibold">{form.email}</span>. If you do not see it
+            in a few minutes, check your spam folder. You can also download your QR code here.
+          </p>
+
+          {/* QR Code Canvas/Image */}
+          {qrDataUrl && (
+            <div className="mt-6 flex flex-col items-center">
+              <div className="border-2 border-gold/40 bg-white p-3 rounded-none shadow-lg">
+                <img
+                  src={qrDataUrl}
+                  alt={`Ticket QR Code for ${ticketCode}`}
+                  className="w-48 h-48 block"
+                />
+              </div>
+
+              {ticketCode && (
+                <p className="mt-3 font-mono text-sm font-bold tracking-widest text-gold bg-ink-2 px-3 py-1 border border-line">
+                  {ticketCode}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleDownloadQr}
+                className="mt-3 inline-flex items-center gap-2 border border-gold/40 bg-gold/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-gold hover:bg-gold/25 transition-colors cursor-pointer"
+              >
+                <Download size={14} />
+                <span>Download QR</span>
+              </button>
+            </div>
+          )}
+
+          {/* Event Dates & Venue */}
+          <div className="mt-6 w-full max-w-md border border-line bg-ink-2/60 p-4 text-left text-xs space-y-1.5">
+            <p>
+              <strong className="text-cream uppercase tracking-wider text-[11px]">Dates:</strong>{" "}
+              <span className="text-mute">{event.dates}</span>
+            </p>
+            <p>
+              <strong className="text-cream uppercase tracking-wider text-[11px]">Venue:</strong>{" "}
+              <span className="text-mute">{event.venueWithCity}</span>
+            </p>
+          </div>
+
+          <button
+            type="button"
+            data-success-close
+            onClick={onClose}
+            className="mt-6 inline-flex h-11 items-center border border-gold bg-gold px-8 text-[12px] font-bold uppercase tracking-[0.18em] text-ink transition-colors hover:bg-gold-2 cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="pr-12">
+            <p className="text-[11px] uppercase tracking-[0.28em] text-gold font-semibold">
+              REGISTRATION
+            </p>
+            <h2 id="registration-title" className="mt-2 font-display text-4xl sm:text-5xl">
+              Secure your place
+            </h2>
+            <p className="mt-2 text-sm text-mute">Takes about a minute.</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="border border-line px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-mute">
+                {event.shortDates}
+              </span>
+              <span className="border border-line px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-mute">
+                {event.venueWithCity}
+              </span>
+            </div>
+            <div className="mt-5 flex items-center gap-3">
+              <div className="h-1 flex-1 bg-line">
+                <div
+                  className="h-full bg-gold transition-all duration-300"
+                  style={{ width: `${(completed / REQUIRED_FIELDS.length) * 100}%` }}
+                />
+              </div>
+              <p className="text-xs text-mute">
+                {completed} of {REQUIRED_FIELDS.length} completed
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-8">
+            <div>
+              <SectionHeading number="01" title="YOUR DETAILS" />
+              <div className="mt-4 space-y-4">
+                <div>
+                  <FieldLabel htmlFor="registration-full-name" label="Full name" />
+                  <input
+                    id="registration-full-name"
+                    data-field="fullName"
+                    type="text"
+                    value={form.fullName}
+                    onChange={(changeEvent) =>
+                      updateField("fullName", changeEvent.target.value)
+                    }
+                    onBlur={() => handleBlur("fullName")}
+                    className={inputClass(!!errors.fullName)}
+                    autoComplete="name"
+                  />
+                  <FieldError message={errors.fullName} />
+                </div>
+
+                <div>
+                  <FieldLabel htmlFor="registration-email" label="Email" />
+                  <input
+                    id="registration-email"
+                    data-field="email"
+                    type="email"
+                    placeholder="you@company.com"
+                    value={form.email}
+                    onChange={(changeEvent) =>
+                      updateField("email", changeEvent.target.value)
+                    }
+                    onBlur={() => handleBlur("email")}
+                    className={inputClass(!!errors.email)}
+                    autoComplete="email"
+                  />
+                  <FieldError message={errors.email} />
+                </div>
+
+                <div>
+                  <FieldLabel htmlFor="registration-phone" label="Phone number" />
+                  <div
+                    className={`flex min-w-0 h-11 border ${
+                      errors.phone ? "border-rose" : "border-line focus-within:border-gold"
+                    }`}
+                  >
+                    <select
+                      aria-label="Country calling code"
+                      value={form.countryCode}
+                      onChange={handleCountryChange}
+                      className="w-[46%] min-w-0 border-r border-line bg-ink-2 px-2 text-xs text-cream outline-none sm:w-auto sm:px-3"
+                    >
+                      {COUNTRY_PHONE_CODES.map((country) => (
+                        <option key={country.code} value={country.code}>
+                          {country.name} ({country.dialCode})
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      id="registration-phone"
+                      data-field="phone"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]{4,14}"
+                      maxLength={phoneLengthLimits(form.countryCode).max}
+                      placeholder="911 984 806"
+                      value={form.phone}
+                      onChange={handlePhoneChange}
+                      onBlur={() => handleBlur("phone")}
+                      className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-cream outline-none"
+                      autoComplete="tel-national"
+                    />
+                  </div>
+                  <p className="mt-1.5 text-xs text-mute">
+                    Enter the number without the country code or leading trunk zero.
+                  </p>
+                  <FieldError message={errors.phone} />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-line pt-6">
+              <SectionHeading number="02" title="YOUR ORGANIZATION" />
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <FieldLabel htmlFor="registration-organization" label="Organization" />
+                  <input
+                    id="registration-organization"
+                    data-field="organization"
+                    type="text"
+                    value={form.organization}
+                    onChange={(changeEvent) =>
+                      updateField("organization", changeEvent.target.value)
+                    }
+                    onBlur={() => handleBlur("organization")}
+                    className={inputClass(!!errors.organization)}
+                    autoComplete="organization"
+                  />
+                  <FieldError message={errors.organization} />
+                </div>
+                <div>
+                  <FieldLabel htmlFor="registration-job-title" label="Job title" />
+                  <input
+                    id="registration-job-title"
+                    data-field="jobTitle"
+                    type="text"
+                    value={form.jobTitle}
+                    onChange={(changeEvent) =>
+                      updateField("jobTitle", changeEvent.target.value)
+                    }
+                    onBlur={() => handleBlur("jobTitle")}
+                    className={inputClass(!!errors.jobTitle)}
+                    autoComplete="organization-title"
+                  />
+                  <FieldError message={errors.jobTitle} />
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <p className="mb-1.5 text-[11px] uppercase tracking-[0.18em] text-mute">
+                  Attendee type <span className="text-rose">*</span>
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {ATTENDEE_TYPES.map(({ value, title, subtitle, icon: Icon }, index) => {
+                    const selected = form.attendeeType === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        data-field={index === 0 ? "attendeeType" : undefined}
+                        aria-pressed={selected}
+                        onClick={() => selectAttendeeType(value)}
+                        className={`border p-4 text-left transition-colors ${
+                          selected
+                            ? "border-gold bg-gold/10"
+                            : "border-line hover:border-gold/60"
+                        }`}
+                      >
+                        <Icon size={18} strokeWidth={1.5} className="text-gold" />
+                        <p className="mt-3 text-sm font-medium">{title}</p>
+                        <p className="mt-0.5 text-xs text-mute">{subtitle}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                <FieldError message={errors.attendeeType} />
+              </div>
+            </div>
+
+            <div className="border-t border-line pt-6">
+              <SectionHeading number="03" title="ATTENDANCE" />
+              <div className="mt-4">
+                <label className="flex items-start gap-3 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    data-field="consent"
+                    checked={form.consent}
+                    onChange={handleConsentChange}
+                    onBlur={() => handleBlur("consent")}
+                    className="mt-0.5 h-4 w-4 accent-[var(--color-gold)] cursor-pointer"
+                  />
+                  <span>
+                    I agree to be contacted about the Ethiopian Business &amp; Investment
+                    Forum. <span className="text-rose">*</span>
+                  </span>
+                </label>
+                <FieldError message={errors.consent} />
+              </div>
+            </div>
+
+            <div className="border-t border-line pt-6">
+              {submitError && <p className="mb-3 text-sm text-rose">{submitError}</p>}
+              <button
+                type="submit"
+                disabled={submitting}
+                aria-disabled={!canSubmit || submitting}
+                className={`h-12 w-full text-[12px] font-medium uppercase tracking-[0.18em] text-ink transition-colors ${
+                  canSubmit && !submitting
+                    ? "border border-gold bg-gold hover:bg-gold-2 cursor-pointer"
+                    : "cursor-not-allowed border border-gold/40 bg-gold/40 text-ink/60"
+                }`}
+              >
+                {submitting ? "Submitting..." : "Register for the Forum"}
+              </button>
+              <p className="mt-3 text-center text-xs text-mute">
+                We only use your details for this event.
+              </p>
+            </div>
+          </form>
+        </>
+      )}
+    </div>
+  );
+}

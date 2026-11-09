@@ -389,10 +389,15 @@ export function GalaSite() {
   const { openRegistration } = useRegistrationModal();
 
   useEffect(() => {
-    const id = window.location.hash.slice(1);
-    if (!id) return;
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+    const params = new URLSearchParams(window.location.search);
+    const hash = window.location.hash.slice(1);
+    if (params.has("register") || hash === "register") {
+      openRegistration();
+      return;
+    }
+    if (!hash) return;
+    document.getElementById(hash)?.scrollIntoView({ behavior: "smooth" });
+  }, [openRegistration]);
 
   return (
     <div className="w-full min-h-screen bg-paper text-cream">
