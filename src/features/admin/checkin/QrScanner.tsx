@@ -3,7 +3,8 @@ import { Html5Qrcode, type CameraDevice } from "html5-qrcode";
 import { Camera, CameraOff, Copy, ShieldAlert, SwitchCamera } from "lucide-react";
 
 interface QrScannerProps {
-  onScan: (code: string) => void;
+  /** Called with the raw text decoded from the camera or an uploaded image. */
+  onScan: (rawText: string) => void;
   disabled?: boolean;
 }
 
@@ -17,6 +18,10 @@ const CAMERA_CONSTRAINTS: MediaTrackConstraints[] = [
   { facingMode: "environment" },
   {},
 ];
+
+const SCAN_DEDUPE_MS = 1500;
+const FILE_DECODE_TIMEOUT_MS = 15000;
+const MAX_DECODE_DIMENSION = 1600;
 
 function errorInfo(error: unknown): CameraErrorInfo {
   if (error instanceof DOMException)
@@ -62,9 +67,62 @@ function cameraMessage(info: CameraErrorInfo): string {
   }
 }
 
+/**
+ * Downscales and re-orients large phone photos before decoding. Native camera
+ * photos are often 12+ megapixels and EXIF-rotated, which makes decoders slow
+ * and unreliable on mobile. Keeping the longest edge at ~1600px preserves QR
+ * detail while bounding memory use.
+ */
+async function prepareImageFile(file: File): Promise<File> {
+  if (typeof createImageBitmap !== "function" || typeof document === "undefined") return file;
+
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    try {
+      const longestEdge = Math.max(bitmap.width, bitmap.height);
+      const scale = Math.min(1, MAX_DECODE_DIMENSION / longestEdge);
+      if (scale === 1 && file.size <= 2_000_000) return file;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) return file;
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) return file;
+
+      const baseName = file.name.replace(/\.[^.]+$/, "") || "qr-photo";
+      return new File([blob], `${baseName}.png`, { type: "image/png" });
+    } finally {
+      bitmap.close?.();
+    }
+  } catch {
+    return file;
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("QR decoding timed out")), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 export function QrScanner({ onScan, disabled = false }: QrScannerProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [lastError, setLastError] = useState<CameraErrorInfo | null>(null);
   const [availableCameras, setAvailableCameras] = useState<CameraDevice[]>([]);
   const [currentCameraId, setCurrentCameraId] = useState<string | null>(null);
@@ -77,23 +135,50 @@ export function QrScanner({ onScan, disabled = false }: QrScannerProps) {
   const startingRef = useRef(false);
   const containerId = "qr-reader-target";
 
+  // Keep the latest props in refs so the long-lived camera callback never
+  // reads stale `onScan`/`disabled` values (e.g. after switching event day).
+  const onScanRef = useRef(onScan);
+  const disabledRef = useRef(disabled);
+  useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
+  useEffect(() => {
+    disabledRef.current = disabled;
+  }, [disabled]);
+
   const inAppBrowser = useMemo(
     () => typeof navigator !== "undefined" && isInAppBrowser(navigator.userAgent),
     [],
   );
 
-  const handleDecoded = useCallback(
-    (decodedText: string) => {
-      if (disabled) return;
-      const clean = decodedText.trim();
-      if (!clean) return;
-      const now = Date.now();
-      if (lastScannedRef.current.code === clean && now - lastScannedRef.current.time < 3000) return;
-      lastScannedRef.current = { code: clean, time: now };
-      onScan(clean);
-    },
-    [disabled, onScan],
-  );
+  const ensureScanner = useCallback(() => {
+    if (!scannerRef.current) {
+      scannerRef.current = new Html5Qrcode(containerId, {
+        verbose: false,
+        // The native BarcodeDetector is inconsistent across mobile browsers
+        // (some versions report support but never resolve on a canvas). Use
+        // the bundled ZXing decoder everywhere for predictable behaviour.
+        useBarCodeDetectorIfSupported: false,
+      });
+    }
+    return scannerRef.current;
+  }, []);
+
+  const emitDecoded = useCallback((decodedText: string) => {
+    if (disabledRef.current) return;
+    const clean = (decodedText ?? "").trim();
+    if (!clean) return;
+
+    const now = Date.now();
+    if (
+      lastScannedRef.current.code === clean &&
+      now - lastScannedRef.current.time < SCAN_DEDUPE_MS
+    ) {
+      return;
+    }
+    lastScannedRef.current = { code: clean, time: now };
+    onScanRef.current(clean);
+  }, []);
 
   const stopTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -107,6 +192,7 @@ export function QrScanner({ onScan, disabled = false }: QrScannerProps) {
       console.error("QR scanner stop error", error);
     } finally {
       stopTracks();
+      lastScannedRef.current = { code: "", time: 0 };
       setIsScanning(false);
     }
   }, [stopTracks]);
@@ -147,10 +233,11 @@ export function QrScanner({ onScan, disabled = false }: QrScannerProps) {
   }, []);
 
   const startScanner = useCallback(async () => {
-    if (startingRef.current || disabled) return;
+    if (startingRef.current || disabledRef.current) return;
     startingRef.current = true;
     setErrorMsg(null);
     setLastError(null);
+    setPhotoError(null);
     if (!window.isSecureContext || typeof navigator.mediaDevices?.getUserMedia !== "function") {
       const info = { name: "SecurityError", message: "Secure context or mediaDevices unavailable" };
       setLastError(info);
@@ -161,11 +248,11 @@ export function QrScanner({ onScan, disabled = false }: QrScannerProps) {
     }
     try {
       await stopScanner();
-      if (!scannerRef.current) scannerRef.current = new Html5Qrcode(containerId);
+      const scanner = ensureScanner();
       let lastCameraError: CameraErrorInfo | null = null;
       for (const constraints of CAMERA_CONSTRAINTS) {
         try {
-          await scannerRef.current.start(
+          await scanner.start(
             { facingMode: "environment" },
             {
               fps: 10,
@@ -175,7 +262,7 @@ export function QrScanner({ onScan, disabled = false }: QrScannerProps) {
                 return { width: Math.min(size, width), height: Math.min(size, height) };
               },
             },
-            handleDecoded,
+            emitDecoded,
             () => undefined,
           );
           const video = document.querySelector(`#${containerId} video`);
@@ -212,26 +299,62 @@ export function QrScanner({ onScan, disabled = false }: QrScannerProps) {
     } finally {
       startingRef.current = false;
     }
-  }, [collectDiagnostics, disabled, handleDecoded, stopScanner]);
+  }, [collectDiagnostics, emitDecoded, ensureScanner, stopScanner]);
+
+  const decodeFile = useCallback(
+    async (file: File): Promise<string> => {
+      const scanner = ensureScanner();
+      return withTimeout(scanner.scanFile(file, false), FILE_DECODE_TIMEOUT_MS);
+    },
+    [ensureScanner],
+  );
 
   const handlePhoto = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    // Reset immediately so selecting the same file again still fires onChange.
     event.target.value = "";
-    if (!file || disabled) return;
+    if (!file || disabledRef.current) return;
+
+    setPhotoError(null);
     setErrorMsg(null);
+
     try {
       await stopScanner();
-      if (!scannerRef.current) scannerRef.current = new Html5Qrcode(containerId);
-      const decoded = await scannerRef.current.scanFile(file, false);
-      handleDecoded(decoded);
+      const prepared = await prepareImageFile(file);
+
+      let decoded: string | null = null;
+      let lastFailure: string | null = null;
+
+      try {
+        decoded = await decodeFile(prepared);
+      } catch (error) {
+        lastFailure = errorInfo(error).message;
+      }
+
+      // Retry with the untouched original if the downscaled copy failed.
+      if (!decoded && prepared !== file) {
+        try {
+          decoded = await decodeFile(file);
+        } catch (error) {
+          lastFailure = errorInfo(error).message;
+        }
+      }
+
+      if (!decoded) {
+        console.warn("QR photo decode failed", lastFailure || "no QR code found");
+        setPhotoError(
+          "No QR code was found in that image. Try a clearer, well-lit photo with the QR filling more of the frame, or enter the ticket code manually.",
+        );
+        return;
+      }
+
+      emitDecoded(decoded);
     } catch (error) {
       const info = errorInfo(error);
-      console.warn("QR photo decode failed", info.name, info.message);
-      setLastError(info);
-      setErrorMsg(
-        "No QR code was found in that image. Try a clearer photo or enter the ticket code manually.",
+      console.warn("QR photo processing failed", info.name, info.message);
+      setPhotoError(
+        "That image could not be read. Try another photo or enter the ticket code manually.",
       );
-      await collectDiagnostics(info);
     }
   };
 
@@ -241,13 +364,8 @@ export function QrScanner({ onScan, disabled = false }: QrScannerProps) {
     const nextCamera = availableCameras[(currentIndex + 1) % availableCameras.length];
     await stopScanner();
     try {
-      if (!scannerRef.current) scannerRef.current = new Html5Qrcode(containerId);
-      await scannerRef.current.start(
-        nextCamera.id,
-        { fps: 10, qrbox: 250 },
-        handleDecoded,
-        () => undefined,
-      );
+      const scanner = ensureScanner();
+      await scanner.start(nextCamera.id, { fps: 10, qrbox: 250 }, emitDecoded, () => undefined);
       setCurrentCameraId(nextCamera.id);
       setCurrentCameraLabel(nextCamera.label || "Selected camera");
       setIsScanning(true);
@@ -365,6 +483,14 @@ export function QrScanner({ onScan, disabled = false }: QrScannerProps) {
           </div>
         )}
       </div>
+      {photoError && (
+        <div
+          role="alert"
+          className="mt-3 border border-rose/40 bg-rose/10 p-2 text-[11px] text-rose"
+        >
+          {photoError}
+        </div>
+      )}
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="truncate text-[10px] text-mute">
           {currentCameraLabel
@@ -376,7 +502,7 @@ export function QrScanner({ onScan, disabled = false }: QrScannerProps) {
           <input
             type="file"
             accept="image/*"
-            capture="environment"
+            aria-label="Upload a photo of a ticket QR code"
             onChange={(event) => void handlePhoto(event)}
             className="sr-only"
           />
