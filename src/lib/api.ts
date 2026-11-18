@@ -155,7 +155,9 @@ export async function getAttendees(
 }
 
 export async function getAttendeeExportDays(): Promise<AttendeeExportDay[]> {
-  return apiFetch<AttendeeExportDay[]>("/api/admin/attendees/export/days");
+  return apiFetch<AttendeeExportDay[]>("/api/admin/attendees/export/days", {
+    cache: "no-store",
+  });
 }
 
 export async function downloadAttendeeExport(date: string): Promise<{ blob: Blob; filename: string }> {
