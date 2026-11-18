@@ -116,10 +116,18 @@ export function AttendeesPage() {
   }, [fetchAttendeesData]);
 
   const refreshExportDays = useCallback(async () => {
-    setExportError("");
+    setExportError((current) => (current ? "" : current));
     try {
       const days = await getAttendeeExportDays();
-      setExportDays(days);
+      setExportDays((current) => {
+        const unchanged =
+          current.length === days.length &&
+          current.every(
+            (day, index) =>
+              day.date === days[index]?.date && day.isToday === days[index]?.isToday,
+          );
+        return unchanged ? current : days;
+      });
       setSelectedExportDate((current) => {
         if (current && days.some((day) => day.date === current)) return current;
         return days.find((day) => !day.isToday)?.date || days[0]?.date || "";
@@ -493,7 +501,6 @@ export function AttendeesPage() {
               value={selectedExportDate}
               onChange={(event) => setSelectedExportDate(event.target.value)}
               onFocus={() => void refreshExportDays()}
-              onMouseDown={() => void refreshExportDays()}
               disabled={exportDays.length === 0}
               className="h-10 min-w-56 border border-line bg-ink px-3 text-xs text-cream outline-none transition-colors focus:border-gold disabled:cursor-not-allowed disabled:opacity-60"
             >
