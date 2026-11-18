@@ -100,7 +100,9 @@ adminRouter.get("/attendees/export/days", async (c) => {
       }))
     : [];
 
-  return c.json(days);
+  return c.json(days, 200, {
+    "Cache-Control": "no-store",
+  });
 });
 
 /**
