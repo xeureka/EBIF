@@ -5,8 +5,11 @@ import {
   ATTENDEE_EXPORT_COLUMNS,
   type AttendeeExportRow,
 } from "./attendee-columns";
-import { getExportFilename } from "./date";
-import { getRegistrationsForDate } from "./repository";
+import { getAllExportFilename, getExportFilename } from "./date";
+import {
+  getAllRegistrationsBeforeDate,
+  getRegistrationsForDate,
+} from "./repository";
 
 function protectCellValue(value: string): string {
   return /^[=+\-@]/.test(value) ? `'${value}` : value;
@@ -44,8 +47,12 @@ function buildWorksheet(rows: AttendeeExportRow[]): XLSX.WorkSheet {
   return worksheet;
 }
 
-export async function buildAttendeeExport(db: AppDb, date: string) {
-  const rows = toExportRows(await getRegistrationsForDate(db, date));
+export async function buildAttendeeExport(db: AppDb, date: string, exportAll = false) {
+  const rows = toExportRows(
+    exportAll
+      ? await getAllRegistrationsBeforeDate(db, date)
+      : await getRegistrationsForDate(db, date),
+  );
   const worksheet = buildWorksheet(rows);
 
   try {
@@ -55,7 +62,7 @@ export async function buildAttendeeExport(db: AppDb, date: string) {
     return {
       body: new Uint8Array(body),
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      filename: getExportFilename(date),
+      filename: exportAll ? getAllExportFilename() : getExportFilename(date),
       rowCount: rows.length,
     };
   } catch (error) {
@@ -64,7 +71,7 @@ export async function buildAttendeeExport(db: AppDb, date: string) {
     return {
       body: new TextEncoder().encode(csv),
       contentType: "text/csv; charset=utf-8",
-      filename: getExportFilename(date, "csv"),
+      filename: exportAll ? getAllExportFilename("csv") : getExportFilename(date, "csv"),
       rowCount: rows.length,
     };
   }

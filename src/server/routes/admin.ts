@@ -112,18 +112,22 @@ adminRouter.get("/attendees/export/days", async (c) => {
 adminRouter.get("/attendees/export", async (c) => {
   const db = c.get("db");
   const admin = c.get("adminUser");
-  const dateResult = attendeeExportDateSchema.safeParse(c.req.query("date"));
+  const requestedDate = c.req.query("date");
+  const exportAll = requestedDate === "all";
+  const dateResult = attendeeExportDateSchema.safeParse(requestedDate);
 
-  if (!dateResult.success) {
-    return c.json(
-      { error: { code: "INVALID_DATE", message: dateResult.error.issues[0]?.message || "Invalid export date" } },
-      400,
-    );
+  if (!exportAll) {
+    if (!dateResult.success) {
+      return c.json(
+        { error: { code: "INVALID_DATE", message: dateResult.error.issues[0]?.message || "Invalid export date" } },
+        400,
+      );
+    }
   }
 
-  const date = dateResult.data;
   const today = getTodayInAddis();
-  if (date > today) {
+  const date = exportAll ? today : dateResult.success ? dateResult.data : "";
+  if (!exportAll && date > today) {
     return c.json(
       { error: { code: "FUTURE_DATE", message: "Cannot export a future date" } },
       400,
@@ -131,21 +135,21 @@ adminRouter.get("/attendees/export", async (c) => {
   }
 
   const firstRegistrationDate = await getFirstRegistrationDate(db);
-  if (!firstRegistrationDate || date < firstRegistrationDate) {
+  if (!firstRegistrationDate || (!exportAll && date < firstRegistrationDate)) {
     return c.json(
       { error: { code: "DATE_OUT_OF_RANGE", message: "No registrations exist for that date range" } },
       400,
     );
   }
 
-  const result = await buildAttendeeExport(db, date);
+  const result = await buildAttendeeExport(db, date, exportAll);
   await recordAuditLog({
     db,
     actorAdminId: admin.id,
     action: "ATTENDEE_EXPORT",
     targetType: "attendee_export",
-    targetId: date,
-    metadata: { date, rowCount: result.rowCount },
+    targetId: exportAll ? "all_before_today" : date,
+    metadata: { date, rowCount: result.rowCount, exportAll, excludesToday: exportAll },
   });
 
   return new Response(result.body, {

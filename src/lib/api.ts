@@ -160,7 +160,9 @@ export async function getAttendeeExportDays(): Promise<AttendeeExportDay[]> {
   });
 }
 
-export async function downloadAttendeeExport(date: string): Promise<{ blob: Blob; filename: string }> {
+export async function downloadAttendeeExport(
+  date: string,
+): Promise<{ blob: Blob; filename: string }> {
   const response = await fetch(`/api/admin/attendees/export?date=${encodeURIComponent(date)}`, {
     credentials: "include",
   });
@@ -180,7 +182,7 @@ export async function downloadAttendeeExport(date: string): Promise<{ blob: Blob
   const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
   return {
     blob: await response.blob(),
-    filename: filenameMatch?.[1] || `attendees-${date}.xlsx`,
+    filename: filenameMatch?.[1] || `${date === "all" ? "all_attendees" : `attendees-${date}`}.xlsx`,
   };
 }
 
