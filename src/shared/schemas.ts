@@ -88,6 +88,21 @@ export const adminsQuerySchema = z.object({
 
 export type AdminsQueryInput = z.infer<typeof adminsQuerySchema>;
 
+export const attendeeExportDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must use YYYY-MM-DD format")
+  .refine((value) => {
+    const [year, month, day] = value.split("-").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return (
+      parsed.getUTCFullYear() === year &&
+      parsed.getUTCMonth() === month - 1 &&
+      parsed.getUTCDate() === day
+    );
+  }, "Date must be a valid calendar date");
+
+export type AttendeeExportDateInput = z.infer<typeof attendeeExportDateSchema>;
+
 export const checkInScanSchema = z.object({
   code: z.string().trim().min(1, "Ticket code is required"),
   day: z.coerce.number().int().refine((d): d is 1 | 2 => d === 1 || d === 2, {

@@ -9,10 +9,16 @@ import {
   CheckCircle2,
   Mail,
   Loader2,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getAttendees, resendAttendeeEmail } from "@/lib/api";
-import type { AttendeeItem, AttendeeStats } from "@/shared/types";
+import {
+  downloadAttendeeExport,
+  getAttendeeExportDays,
+  getAttendees,
+  resendAttendeeEmail,
+} from "@/lib/api";
+import type { AttendeeExportDay, AttendeeItem, AttendeeStats } from "@/shared/types";
 import type { AttendeesQueryInput } from "@/shared/schemas";
 import { StatCard } from "../components/StatCard";
 import { SearchInput } from "../components/SearchInput";
@@ -75,6 +81,13 @@ export function AttendeesPage() {
   // Resend email action loading state
   const [resendingId, setResendingId] = useState<string | null>(null);
 
+  // Export state
+  const [exportDays, setExportDays] = useState<AttendeeExportDay[]>([]);
+  const [selectedExportDate, setSelectedExportDate] = useState("");
+  const [exportDaysLoading, setExportDaysLoading] = useState(false);
+  const [exportingDate, setExportingDate] = useState<string | null>(null);
+  const [exportError, setExportError] = useState("");
+
   const fetchAttendeesData = useCallback(async () => {
     setError("");
 
@@ -102,6 +115,66 @@ export function AttendeesPage() {
   useEffect(() => {
     fetchAttendeesData();
   }, [fetchAttendeesData]);
+
+  const refreshExportDays = useCallback(async () => {
+    setExportDaysLoading(true);
+    setExportError("");
+    try {
+      const days = await getAttendeeExportDays();
+      setExportDays(days);
+      setSelectedExportDate((current) => {
+        if (current && days.some((day) => day.date === current)) return current;
+        return days.find((day) => !day.isToday)?.date || days[0]?.date || "";
+      });
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Failed to load export dates.");
+    } finally {
+      setExportDaysLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshExportDays();
+  }, [refreshExportDays]);
+
+  const getTodayInAddis = () =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Addis_Ababa",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+  const formatExportDate = (date: string, isToday: boolean) => {
+    const formatted = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Africa/Addis_Ababa",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(`${date}T00:00:00+03:00`));
+    return isToday ? `${formatted} (today, in progress)` : formatted;
+  };
+
+  const handleExport = async (date: string) => {
+    if (!date) return;
+    setExportingDate(date);
+    setExportError("");
+    try {
+      const { blob, filename } = await downloadAttendeeExport(date);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Failed to export attendees.");
+    } finally {
+      setExportingDate(null);
+    }
+  };
 
   // Reset page when filters change
   const handleSearchChange = (q: string) => {
@@ -396,6 +469,69 @@ export function AttendeesPage() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Export */}
+      <div className="border border-line bg-ink p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
+              Export attendees
+            </p>
+            <p className="mt-1 text-xs text-mute">
+              Download registrations for one calendar day in Addis Ababa time.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <select
+              aria-label="Export date"
+              value={selectedExportDate}
+              onChange={(event) => setSelectedExportDate(event.target.value)}
+              onFocus={() => void refreshExportDays()}
+              onMouseDown={() => void refreshExportDays()}
+              disabled={exportDaysLoading || exportDays.length === 0}
+              className="h-10 min-w-56 border border-line bg-ink px-3 text-xs text-cream outline-none transition-colors focus:border-gold disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {exportDays.length === 0 ? (
+                <option value="">No registration days</option>
+              ) : (
+                exportDays.map((day) => (
+                  <option key={day.date} value={day.date}>
+                    {formatExportDate(day.date, day.isToday)}
+                  </option>
+                ))
+              )}
+            </select>
+            <button
+              type="button"
+              onClick={() => void handleExport(selectedExportDate)}
+              disabled={!selectedExportDate || exportingDate !== null}
+              className="inline-flex h-10 items-center justify-center gap-2 border border-gold bg-gold px-4 text-xs font-medium uppercase tracking-[0.16em] text-ink transition-colors hover:bg-gold-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exportingDate === selectedExportDate ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Download size={14} />
+              )}
+              <span>Export</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExport(exportDays.find((day) => day.isToday)?.date || getTodayInAddis())}
+              disabled={exportingDate !== null}
+              className="inline-flex h-10 items-center justify-center gap-2 border border-line px-4 text-xs font-medium uppercase tracking-[0.16em] text-mute transition-colors hover:border-gold hover:text-gold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exportingDate === (exportDays.find((day) => day.isToday)?.date || getTodayInAddis()) ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Download size={14} />
+              )}
+              <span>Export today</span>
+            </button>
+          </div>
+        </div>
+        {exportError && <p className="mt-3 text-xs text-rose">{exportError}</p>}
       </div>
 
       {/* Error state with retry */}

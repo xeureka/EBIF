@@ -7,6 +7,7 @@ import type {
   CheckInStatsResponse,
   CheckInSearchResponse,
   PublicTicketResponse,
+  AttendeeExportDay,
 } from "../shared/types";
 import type {
   RegistrationInput,
@@ -151,6 +152,34 @@ export async function getAttendees(
 
   const qs = query.toString();
   return apiFetch<AttendeesResponse>(`/api/admin/attendees${qs ? `?${qs}` : ""}`);
+}
+
+export async function getAttendeeExportDays(): Promise<AttendeeExportDay[]> {
+  return apiFetch<AttendeeExportDay[]>("/api/admin/attendees/export/days");
+}
+
+export async function downloadAttendeeExport(date: string): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(`/api/admin/attendees/export?date=${encodeURIComponent(date)}`, {
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    let message = "Failed to export attendees.";
+    try {
+      const data = await response.json();
+      if (data?.error?.message) message = data.error.message;
+    } catch {
+      // Ignore non-JSON error responses.
+    }
+    throw new ApiError(message, `HTTP_${response.status}`);
+  }
+
+  const contentDisposition = response.headers.get("Content-Disposition") || "";
+  const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+  return {
+    blob: await response.blob(),
+    filename: filenameMatch?.[1] || `attendees-${date}.xlsx`,
+  };
 }
 
 /**
