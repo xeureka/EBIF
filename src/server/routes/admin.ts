@@ -88,7 +88,7 @@ adminRouter.get("/me", async (c) => {
 
 /**
  * GET /api/admin/attendees/export/days
- * Lists every Addis Ababa calendar day from the first registration through today.
+ * Lists every Addis Ababa calendar day from the fixed export start date through today.
  */
 adminRouter.get("/attendees/export/days", async (c) => {
   const db = c.get("db");
