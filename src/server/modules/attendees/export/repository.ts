@@ -34,6 +34,25 @@ export async function getRegistrationsForDate(
   date: string,
 ): Promise<AttendeeExportRepositoryRow[]> {
   const { start, end } = getAddisDayWindow(date);
+  return getRegistrationsForWindow(db, start, end);
+}
+
+export async function getAllRegistrationsBeforeDate(
+  db: AppDb,
+  date: string,
+): Promise<AttendeeExportRepositoryRow[]> {
+  const { start } = getAddisDayWindow(date);
+  return getRegistrationsForWindow(db, undefined, start);
+}
+
+async function getRegistrationsForWindow(
+  db: AppDb,
+  start: Date | undefined,
+  end: Date,
+): Promise<AttendeeExportRepositoryRow[]> {
+  const registrationConditions = [lt(registrations.createdAt, end)];
+  if (start) registrationConditions.push(gte(registrations.createdAt, start));
+
   const dayOneRows = await db
     .select({
       id: registrations.id,
@@ -53,19 +72,21 @@ export async function getRegistrationsForDate(
       checkIns,
       and(eq(checkIns.registrationId, registrations.id), eq(checkIns.eventDay, 1)),
     )
-    .where(and(gte(registrations.createdAt, start), lt(registrations.createdAt, end)))
+    .where(and(...registrationConditions))
     .orderBy(asc(registrations.createdAt), asc(registrations.id));
+
+  const dayTwoConditions = [
+    eq(checkIns.eventDay, 2),
+    lt(registrations.createdAt, end),
+  ];
+  if (start) dayTwoConditions.push(gte(registrations.createdAt, start));
 
   const dayTwoRows = await db
     .select({ registrationId: checkIns.registrationId })
     .from(checkIns)
     .innerJoin(registrations, eq(checkIns.registrationId, registrations.id))
     .where(
-      and(
-        eq(checkIns.eventDay, 2),
-        gte(registrations.createdAt, start),
-        lt(registrations.createdAt, end),
-      ),
+      and(...dayTwoConditions),
     );
   const dayTwoIds = new Set(dayTwoRows.map((row) => row.registrationId));
 

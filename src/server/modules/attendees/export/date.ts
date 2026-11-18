@@ -49,3 +49,7 @@ export function getExportFilename(date: string, extension: "xlsx" | "csv" = "xls
   const [month, day] = formatted.toLowerCase().split(" ");
   return `${month}_${day.replace(",", "")}.${extension}`;
 }
+
+export function getAllExportFilename(extension: "xlsx" | "csv" = "xlsx"): string {
+  return `all_attendees.${extension}`;
+}

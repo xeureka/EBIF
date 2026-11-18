@@ -529,6 +529,19 @@ export function AttendeesPage() {
               )}
               <span>Export today</span>
             </button>
+            <button
+              type="button"
+              onClick={() => void handleExport("all")}
+              disabled={exportingDate !== null}
+              className="inline-flex h-10 items-center justify-center gap-2 border border-line px-4 text-xs font-medium uppercase tracking-[0.16em] text-mute transition-colors hover:border-gold hover:text-gold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exportingDate === "all" ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Download size={14} />
+              )}
+              <span>Export all</span>
+            </button>
           </div>
         </div>
         {exportError && <p className="mt-3 text-xs text-rose">{exportError}</p>}
