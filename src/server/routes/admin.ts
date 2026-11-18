@@ -17,11 +17,12 @@ import { ResendEmailProvider } from "../modules/email/resend";
 import { sendConfirmationEmail } from "../modules/email/service";
 import { checkInRouter } from "./checkin";
 import {
+  ATTENDEE_EXPORT_START_DATE,
   getTodayInAddis,
   listDatesNewestFirst,
 } from "../modules/attendees/export/date";
 import { buildAttendeeExport } from "../modules/attendees/export/service";
-import { getFirstRegistrationDate } from "../modules/attendees/export/repository";
+import { countRegistrationsBeforeDate } from "../modules/attendees/export/repository";
 
 export const adminRouter = new Hono<AdminContextEnv>();
 
@@ -92,13 +93,29 @@ adminRouter.get("/me", async (c) => {
 adminRouter.get("/attendees/export/days", async (c) => {
   const db = c.get("db");
   const today = getTodayInAddis();
-  const firstRegistrationDate = await getFirstRegistrationDate(db);
-  const days: AttendeeExportDay[] = firstRegistrationDate
-    ? listDatesNewestFirst(firstRegistrationDate, today).map((date) => ({
-        date,
-        isToday: date === today,
-      }))
-    : [];
+  const registrationsBeforeCutoff = await countRegistrationsBeforeDate(
+    db,
+    ATTENDEE_EXPORT_START_DATE,
+  );
+  if (registrationsBeforeCutoff > 0) {
+    return c.json(
+      {
+        error: {
+          code: "REGISTRATIONS_BEFORE_EXPORT_START",
+          message: `There are ${registrationsBeforeCutoff} registrations before ${ATTENDEE_EXPORT_START_DATE}. Review them before exporting from the fixed start date.`,
+        },
+      },
+      409,
+    );
+  }
+
+  const days: AttendeeExportDay[] = listDatesNewestFirst(
+    ATTENDEE_EXPORT_START_DATE,
+    today,
+  ).map((date) => ({
+    date,
+    isToday: date === today,
+  }));
 
   return c.json(days, 200, {
     "Cache-Control": "no-store",
@@ -134,11 +151,26 @@ adminRouter.get("/attendees/export", async (c) => {
     );
   }
 
-  const firstRegistrationDate = await getFirstRegistrationDate(db);
-  if (!firstRegistrationDate || (!exportAll && date < firstRegistrationDate)) {
+  if (date < ATTENDEE_EXPORT_START_DATE) {
     return c.json(
-      { error: { code: "DATE_OUT_OF_RANGE", message: "No registrations exist for that date range" } },
+      { error: { code: "DATE_OUT_OF_RANGE", message: `Export date cannot be before ${ATTENDEE_EXPORT_START_DATE}` } },
       400,
+    );
+  }
+
+  const registrationsBeforeCutoff = await countRegistrationsBeforeDate(
+    db,
+    ATTENDEE_EXPORT_START_DATE,
+  );
+  if (registrationsBeforeCutoff > 0) {
+    return c.json(
+      {
+        error: {
+          code: "REGISTRATIONS_BEFORE_EXPORT_START",
+          message: `There are ${registrationsBeforeCutoff} registrations before ${ATTENDEE_EXPORT_START_DATE}. Review them before exporting from the fixed start date.`,
+        },
+      },
+      409,
     );
   }
 

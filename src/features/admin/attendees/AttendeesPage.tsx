@@ -84,7 +84,6 @@ export function AttendeesPage() {
   // Export state
   const [exportDays, setExportDays] = useState<AttendeeExportDay[]>([]);
   const [selectedExportDate, setSelectedExportDate] = useState("");
-  const [exportDaysLoading, setExportDaysLoading] = useState(false);
   const [exportingDate, setExportingDate] = useState<string | null>(null);
   const [exportError, setExportError] = useState("");
 
@@ -117,7 +116,6 @@ export function AttendeesPage() {
   }, [fetchAttendeesData]);
 
   const refreshExportDays = useCallback(async () => {
-    setExportDaysLoading(true);
     setExportError("");
     try {
       const days = await getAttendeeExportDays();
@@ -128,13 +126,19 @@ export function AttendeesPage() {
       });
     } catch (err) {
       setExportError(err instanceof Error ? err.message : "Failed to load export dates.");
-    } finally {
-      setExportDaysLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void refreshExportDays();
+  }, [refreshExportDays]);
+
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      void refreshExportDays();
+    };
+    window.addEventListener("focus", handleWindowFocus);
+    return () => window.removeEventListener("focus", handleWindowFocus);
   }, [refreshExportDays]);
 
   const getTodayInAddis = () =>
@@ -490,7 +494,7 @@ export function AttendeesPage() {
               onChange={(event) => setSelectedExportDate(event.target.value)}
               onFocus={() => void refreshExportDays()}
               onMouseDown={() => void refreshExportDays()}
-              disabled={exportDaysLoading || exportDays.length === 0}
+              disabled={exportDays.length === 0}
               className="h-10 min-w-56 border border-line bg-ink px-3 text-xs text-cream outline-none transition-colors focus:border-gold disabled:cursor-not-allowed disabled:opacity-60"
             >
               {exportDays.length === 0 ? (

@@ -1,4 +1,5 @@
 export const ATTENDEE_EXPORT_TIME_ZONE = "Africa/Addis_Ababa";
+export const ATTENDEE_EXPORT_START_DATE = "2026-11-05";
 const ADDIS_ABABA_OFFSET_MS = 3 * 60 * 60 * 1000;
 
 export function getTodayInAddis(): string {
