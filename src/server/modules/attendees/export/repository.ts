@@ -1,7 +1,7 @@
-import { and, asc, eq, gte, lt } from "drizzle-orm";
+import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 import { checkIns, registrations } from "../../../db/schema";
 import type { AppDb } from "../../../db/client";
-import { getAddisDate, getAddisDayWindow } from "./date";
+import { getAddisDayWindow } from "./date";
 
 export type AttendeeExportRepositoryRow = {
   id: string;
@@ -19,14 +19,14 @@ export type AttendeeExportRepositoryRow = {
   day2CheckedIn: boolean;
 };
 
-export async function getFirstRegistrationDate(db: AppDb): Promise<string | null> {
-  const [first] = await db
-    .select({ createdAt: registrations.createdAt })
+export async function countRegistrationsBeforeDate(db: AppDb, date: string): Promise<number> {
+  const { start } = getAddisDayWindow(date);
+  const [result] = await db
+    .select({ count: sql<number>`count(*)::int` })
     .from(registrations)
-    .orderBy(asc(registrations.createdAt))
-    .limit(1);
+    .where(lt(registrations.createdAt, start));
 
-  return first ? getAddisDate(first.createdAt) : null;
+  return result?.count ?? 0;
 }
 
 export async function getRegistrationsForDate(
