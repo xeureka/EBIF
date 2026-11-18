@@ -38,6 +38,11 @@ export interface AttendeesResponse {
   stats: AttendeeStats;
 }
 
+export interface AttendeeExportDay {
+  date: string;
+  isToday: boolean;
+}
+
 export interface CheckInRegistrationDetails {
   id: string;
   fullName: string;

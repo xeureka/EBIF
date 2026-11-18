@@ -6,7 +6,9 @@ import {
   adminStatusSchema,
   attendeesQuerySchema,
   adminsQuerySchema,
+  attendeeExportDateSchema,
 } from "../../shared/schemas";
+import type { AttendeeExportDay } from "../../shared/types";
 import { registrations, user, account, session, rateLimit, checkIns, emailLog } from "../db/schema";
 import { requireAdmin, type AdminContextEnv } from "../middleware/admin";
 import { recordAuditLog } from "../utils/audit";
@@ -14,6 +16,12 @@ import { getWorkerEnv, getWorkerEnvPresence, parseEmailAddress } from "../env";
 import { ResendEmailProvider } from "../modules/email/resend";
 import { sendConfirmationEmail } from "../modules/email/service";
 import { checkInRouter } from "./checkin";
+import {
+  getTodayInAddis,
+  listDatesNewestFirst,
+} from "../modules/attendees/export/date";
+import { buildAttendeeExport } from "../modules/attendees/export/service";
+import { getFirstRegistrationDate } from "../modules/attendees/export/repository";
 
 export const adminRouter = new Hono<AdminContextEnv>();
 
@@ -74,6 +82,78 @@ adminRouter.get("/me", async (c) => {
     email: admin.email,
     role: admin.role,
     status: admin.banned ? "disabled" : "active",
+  });
+});
+
+/**
+ * GET /api/admin/attendees/export/days
+ * Lists every Addis Ababa calendar day from the first registration through today.
+ */
+adminRouter.get("/attendees/export/days", async (c) => {
+  const db = c.get("db");
+  const today = getTodayInAddis();
+  const firstRegistrationDate = await getFirstRegistrationDate(db);
+  const days: AttendeeExportDay[] = firstRegistrationDate
+    ? listDatesNewestFirst(firstRegistrationDate, today).map((date) => ({
+        date,
+        isToday: date === today,
+      }))
+    : [];
+
+  return c.json(days);
+});
+
+/**
+ * GET /api/admin/attendees/export?date=YYYY-MM-DD
+ * Generates an attendee workbook on demand for the selected Addis calendar day.
+ */
+adminRouter.get("/attendees/export", async (c) => {
+  const db = c.get("db");
+  const admin = c.get("adminUser");
+  const dateResult = attendeeExportDateSchema.safeParse(c.req.query("date"));
+
+  if (!dateResult.success) {
+    return c.json(
+      { error: { code: "INVALID_DATE", message: dateResult.error.issues[0]?.message || "Invalid export date" } },
+      400,
+    );
+  }
+
+  const date = dateResult.data;
+  const today = getTodayInAddis();
+  if (date > today) {
+    return c.json(
+      { error: { code: "FUTURE_DATE", message: "Cannot export a future date" } },
+      400,
+    );
+  }
+
+  const firstRegistrationDate = await getFirstRegistrationDate(db);
+  if (!firstRegistrationDate || date < firstRegistrationDate) {
+    return c.json(
+      { error: { code: "DATE_OUT_OF_RANGE", message: "No registrations exist for that date range" } },
+      400,
+    );
+  }
+
+  const result = await buildAttendeeExport(db, date);
+  await recordAuditLog({
+    db,
+    actorAdminId: admin.id,
+    action: "ATTENDEE_EXPORT",
+    targetType: "attendee_export",
+    targetId: date,
+    metadata: { date, rowCount: result.rowCount },
+  });
+
+  return new Response(result.body, {
+    status: 200,
+    headers: {
+      "Content-Type": result.contentType,
+      "Content-Disposition": `attachment; filename="${result.filename}"`,
+      "Cache-Control": "no-store",
+      "X-Export-Row-Count": String(result.rowCount),
+    },
   });
 });
 
