@@ -17,7 +17,7 @@ import { ContactInfo } from "@/components/ui/ContactInfo";
 import { PhotoSlideshow } from "@/components/ui/PhotoSlideshow";
 import { event } from "@/data/event";
 import { sortedPhotos } from "@/lib/photos";
-import venueImage from "../../assets/gala/programme/adwa.webp";
+import venueImage from "../../assets/gala/programme/cbe-headquarters.webp";
 import programmeAttendeeImage from "../../assets/gala/who-attends/an1.jpg";
 
 const PILLARS = [
@@ -204,7 +204,7 @@ const PROGRAMME_PHOTOS = import.meta.glob(
   [
     "../../assets/gala/programme/*.{jpg,jpeg,png,webp,avif}",
     "!../../assets/gala/programme/stage.jpg",
-    "!../../assets/gala/programme/adwa.webp",
+    "!../../assets/gala/programme/cbe-headquarters.webp",
   ],
   {
     eager: true,
@@ -631,7 +631,7 @@ export function GalaSite() {
             </div>
             <img
               src={venueImage}
-              alt="Adwa Victory Memorial Museum in Addis Ababa"
+              alt="Commercial Bank of Ethiopia Headquarters in Addis Ababa"
               loading="lazy"
               className="aspect-[3/2] w-full border border-line object-cover"
             />
