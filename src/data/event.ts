@@ -8,7 +8,7 @@ export const event = {
   city: "Addis Ababa",
   venueWithCity: "Commercial Bank of Ethiopia Headquarters, Addis Ababa",
   mapUrl:
-    "https://www.google.com/maps/search/?api=1&query=Commercial+Bank+of+Ethiopia+Headquarters+Addis+Ababa",
+    "https://www.google.com/maps/dir/?api=1&destination=Commercial+Bank+of+Ethiopia+Headquarters%2C+Arbegnoch+Street%2C+Addis+Ababa%2C+Ethiopia",
   phones: ["0911984806", "0911343831"],
   emails: ["feven.negussie@nexabusinessgroup.com", "zekre.henock@nexabusinessgroup.com"],
   timeZone: "Africa/Addis_Ababa",
